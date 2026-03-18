@@ -6,6 +6,7 @@
   - email/password
   - Apple OAuth bridge
   - Google OAuth bridge
+- Step 7 auth testing has been completed against the configured providers.
 - The app still does **not** have live HealthKit, Apple Watch, Garmin, or real AI/ML data pipelines yet.
 - Verification completed on this phase:
   - `npm run lint` passed
