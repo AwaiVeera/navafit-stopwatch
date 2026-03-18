@@ -1,0 +1,24 @@
+---
+description: React and stopwatch implementation patterns
+globs: src/**/*.tsx
+alwaysApply: false
+---
+
+# React Stopwatch Patterns
+
+- Keep timing logic deterministic and isolated.
+- Use `useEffect` intervals with proper cleanup.
+- Prefer derived display state from raw elapsed time.
+- Keep UI components focused; move shared logic to helpers/hooks.
+
+# State Guidance
+
+- Keep global state minimal in `App`.
+- Use typed models for metrics/logs.
+- Avoid tightly coupling view routing with timer internals.
+
+# UX Guidance
+
+- Preserve tactical visual consistency.
+- Keep fallback behavior for missing assets.
+- Respect reduced-motion users for animation effects.

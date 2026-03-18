@@ -1,0 +1,23 @@
+---
+description: Capacitor and Xcode readiness workflow
+globs: ios/**
+alwaysApply: false
+---
+
+# Capacitor + Xcode Workflow
+
+- After web code changes, run `npm run cap:sync`.
+- Verify simulator build path before iOS readiness claims:
+  - `xcodebuild -project ios/App/App.xcodeproj -scheme App -destination "generic/platform=iOS Simulator" build`
+
+# Platform Checks
+
+- Confirm simulator devices exist via `xcrun simctl list devices available`.
+- If platform runtime is missing, use:
+  - `xcodebuild -downloadPlatform iOS`
+
+# Release-Safe Notes
+
+- Keep bundle ID changes explicit and reviewed.
+- Do not claim App Store readiness without metadata + policy values.
+- Record unresolved release values as `TBD`.

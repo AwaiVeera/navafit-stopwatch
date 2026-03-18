@@ -1,0 +1,26 @@
+---
+description: Release metadata must avoid assumptions
+globs: docs/**
+alwaysApply: false
+---
+
+# Release Metadata Safety
+
+- Never invent legal or store values.
+- Mark missing launch values as `TBD`.
+- Keep App Store and Play Store checklists aligned.
+
+# Required Confirmations Before "Launch Ready"
+
+- App name confirmed by owner
+- Bundle/package IDs confirmed
+- Privacy policy URL confirmed
+- Support contact confirmed
+- Data safety details confirmed
+
+# Output Standard
+
+- Split into:
+  - Confirmed
+  - Missing (`TBD`)
+  - Next actions

@@ -1,0 +1,28 @@
+---
+description: Core delivery and evidence standards
+alwaysApply: true
+---
+
+# Core Delivery Rule
+
+- Do not assume unknown product, API, or store details.
+- Mark unknown values as `TBD`.
+- Keep language simple and action-focused.
+- Prefer small, reversible changes.
+
+# Evidence Before Claims
+
+- Verify with commands before declaring a fix complete.
+- Include exact verification commands in updates.
+- For build claims, run project build/sync commands.
+
+# Safety
+
+- Do not use destructive git operations unless explicitly requested.
+- If unexpected unrelated file changes appear, pause and ask.
+
+# Done Criteria
+
+- Requested files created/updated.
+- Verification completed and reported.
+- Remaining gaps listed as `TBD` with next steps.
