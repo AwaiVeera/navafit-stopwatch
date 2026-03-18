@@ -250,7 +250,7 @@ When done, send me this prompt:
 - [x] Run `SUPABASE_PHASE1_FOUNDATION.sql`
 - [x] Enable Supabase Email provider
 - [x] Configure Apple provider in Apple Developer and Supabase
-- [ ] Configure Google provider in Google Cloud and Supabase
+- [x] Configure Google provider in Google Cloud and Supabase
 - [ ] Prepare privacy policy and terms URLs
 - [ ] Request Garmin developer access if Garmin is required in v1
 
