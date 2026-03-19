@@ -219,7 +219,7 @@ When done, send me this prompt:
 - Garmin OAuth and Garmin API sync
 - Supabase writes for workout sessions, telemetry snapshots, sync events, and usage events
 - consent screens inside the app
-- privacy policy and terms pages inside or linked from the app
+- linking the live privacy policy and terms pages inside the app
 - custom auth domain and universal links
 - production analytics writes
 - real AI / ML logic on live data
@@ -241,6 +241,8 @@ When done, send me this prompt:
 - [x] Apple/Google OAuth bridge added
 - [x] iOS deep-link callback scheme added
 - [x] Initial Supabase SQL foundation file added
+- [x] Privacy policy and terms draft source files prepared
+- [x] Live legal pages verified at `https://navafit.sg/privacy-policy/` and `https://navafit.sg/terms-of-service/`
 - [x] Capacitor iOS sync passed
 - [x] Lint passed
 - [x] Build passed
@@ -252,7 +254,7 @@ When done, send me this prompt:
 - [x] Enable Supabase Email provider
 - [x] Configure Apple provider in Apple Developer and Supabase
 - [x] Configure Google provider in Google Cloud and Supabase
-- [ ] Prepare privacy policy and terms URLs
+- [x] Publish privacy policy and terms at `https://navafit.sg/privacy-policy/` and `https://navafit.sg/terms-of-service/`
 - [ ] Request Garmin developer access if Garmin is required in v1
 
 ### Not Approved Yet
