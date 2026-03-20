@@ -6,6 +6,13 @@ alwaysApply: false
 
 # Capacitor + Xcode Workflow
 
+## Signing (Required for Physical Device)
+
+- "Signing for 'App' requires a development team" → See `docs/XCODE_SIGNING_FIRST_TIME.md`.
+- User has zero coding background: give step-by-step instructions, no assumptions.
+
+## Sync and Build
+
 - After web code changes, run `npm run cap:sync`.
 - Verify simulator build path before iOS readiness claims:
   - `xcodebuild -project ios/App/App.xcodeproj -scheme App -destination "generic/platform=iOS Simulator" build`

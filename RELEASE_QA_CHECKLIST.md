@@ -48,6 +48,7 @@ A physical iPhone was not connected during this session, so the items below stil
 
 ## Before TestFlight Upload
 
+- Open `ios/App/App.xcodeproj` in Xcode (this project uses `.xcodeproj`, not `.xcworkspace`).
 - Rebuild the iOS release target with signing enabled in Xcode.
 - Confirm the Apple Developer signing profile includes HealthKit capability.
 - Archive in Xcode.

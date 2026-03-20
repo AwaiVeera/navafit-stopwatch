@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 
+import { getSupabaseSetupMessage } from '../services/supabase'
 import type { EmailAuthMode, SocialAuthProvider } from '../types'
 
 interface LoginScreenProps {
@@ -96,6 +97,22 @@ export function LoginScreen({
         </section>
 
         <form onSubmit={handleSubmit} className="glass-sheet space-y-3">
+          {!isSupabaseConfigured ? (
+            <div
+              className="rounded-xl border border-[color-mix(in_srgb,var(--danger-soft)_45%,transparent)] bg-[color-mix(in_srgb,var(--danger-soft)_12%,transparent)] p-3 text-left text-sm"
+              role="alert"
+            >
+              <p className="title-font font-medium text-[var(--text-primary)]">Login is turned off in this build</p>
+              <p className="support-copy mt-2 text-[var(--text-secondary)]">{getSupabaseSetupMessage()}</p>
+              <p className="support-copy mt-2 text-[var(--text-secondary)]">
+                On your Mac: put those values in the file <span className="text-[var(--text-primary)]">.env.local</span> in
+                the project folder. Then run <span className="text-[var(--text-primary)]">npm run build</span>, then{' '}
+                <span className="text-[var(--text-primary)]">npm run cap:sync</span>, then install from Xcode again. The
+                buttons below stay disabled until a new build is on your phone.
+              </p>
+            </div>
+          ) : null}
+
           <div>
             <p className="label-text">Email access</p>
             <div className="soft-toggle mt-2 w-full justify-between">

@@ -182,11 +182,59 @@ function App() {
         return
       }
 
-      const { data, error } = await supabase.auth.getSession()
+      const SESSION_BOOTSTRAP_TIMEOUT_MS = 20_000
+
+      const sessionOutcome = await Promise.race([
+        supabase.auth.getSession().then((result) => ({ kind: 'result' as const, result })),
+        new Promise<{ kind: 'timeout' }>((resolve) => {
+          setTimeout(() => resolve({ kind: 'timeout' }), SESSION_BOOTSTRAP_TIMEOUT_MS)
+        }),
+      ])
 
       if (!isMounted) {
         return
       }
+
+      if (sessionOutcome.kind === 'timeout') {
+        setAuthError(
+          'Could not reach Supabase in time. Check Wi-Fi or cellular data, wait a moment, then fully quit the app and open it again.',
+        )
+        setSession(null)
+        setCurrentView('login')
+        setIsAuthBootstrapping(false)
+
+        const { data: listenerData } = supabase.auth.onAuthStateChange((event, nextSession) => {
+          sessionRef.current = nextSession
+          setSession(nextSession)
+
+          if (nextSession) {
+            if (event === 'SIGNED_IN') {
+              setCurrentView('dashboard')
+            }
+
+            setAuthError('')
+            setAuthMessage('')
+            setIsAuthBootstrapping(true)
+          } else {
+            setCurrentView('login')
+            setHealth(initialHealth)
+            setLogs(initialLogs)
+            setTelemetry(createInitialTelemetryState())
+            setConsentRecord(null)
+            setDraftPreset(STANDARD_SESSION_PRESET)
+            setActiveSessionPreset(STANDARD_SESSION_PRESET)
+            setConsentError('')
+            setIsAuthBootstrapping(false)
+          }
+
+          setIsAuthBusy(false)
+        })
+
+        authSubscription = listenerData.subscription
+        return
+      }
+
+      const { data, error } = sessionOutcome.result
 
       if (error) {
         setAuthError(formatAuthError(error))
@@ -283,6 +331,7 @@ function App() {
 
         const message =
           error instanceof Error ? error.message : 'Could not load your saved NavaFit production data.'
+
         setAuthError(message)
         setCurrentView('dashboard')
       } finally {
@@ -568,7 +617,7 @@ function App() {
   }, [session?.user.id])
 
   return (
-    <div className="relative min-h-screen overflow-hidden text-[var(--text-primary)]">
+    <div className="app-root relative overflow-hidden text-[var(--text-primary)]">
       <div className="pointer-events-none absolute inset-0 app-backdrop" />
       <div className="pointer-events-none absolute inset-0 app-frost" />
 
