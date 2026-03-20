@@ -6,9 +6,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 
 import { BreathScreen } from './screens/BreathScreen'
+import { ConsentScreen } from './screens/ConsentScreen'
 import { DashboardScreen } from './screens/DashboardScreen'
 import { BiometricsScreen } from './screens/BiometricsScreen'
 import { LoginScreen } from './screens/LoginScreen'
+import { PreSessionScreen } from './screens/PreSessionScreen'
 import { StopwatchScreen } from './screens/StopwatchScreen'
 import {
   finalizeAuthFromUrl,
@@ -18,10 +20,36 @@ import {
   startSocialAuth,
   submitEmailAuth,
 } from './services/auth'
+import { resolveAuthenticatedView } from './services/app-flow'
+import {
+  ensureProfile,
+  loadPersistedAppState,
+  recordAppUsageEvent,
+  saveWorkoutSession,
+  upsertUserConsent,
+} from './services/data'
 import { buildInsightSnapshot } from './services/insights'
+import {
+  buildRecommendedSessionPreset,
+  getDraftPresetForMode,
+  readPresetModePreference,
+  savePresetModePreference,
+  STANDARD_SESSION_PRESET,
+} from './services/presets'
 import { getSupabaseSetupMessage, isSupabaseConfigured, supabase, usesNativeAuthRedirect } from './services/supabase'
 import { createInitialTelemetryState, syncTelemetry } from './services/telemetry'
-import type { EmailAuthMode, HealthMetrics, SocialAuthProvider, ViewId, WorkoutLog } from './types'
+import { hasAcceptedCurrentLegalVersions } from './legal'
+import type {
+  EmailAuthMode,
+  HealthMetrics,
+  PresetMode,
+  SessionPreset,
+  SessionSavePayload,
+  SocialAuthProvider,
+  UserConsentRecord,
+  ViewId,
+  WorkoutLog,
+} from './types'
 
 const initialHealth: HealthMetrics = {
   heartRate: 132,
@@ -32,22 +60,38 @@ const initialHealth: HealthMetrics = {
   stressLevel: 39,
 }
 
-const initialLogs: WorkoutLog[] = [
-  {
-    id: '1',
-    date: '2026-03-09',
-    title: 'Kalari + Gadah Mix',
-    durationMinutes: 43,
-    note: 'Good stamina. Keep breath pace stable during final set.',
-  },
-  {
-    id: '2',
-    date: '2026-03-08',
-    title: 'Animal Flow + Breath',
-    durationMinutes: 36,
-    note: 'Stress dropped after long exhale cycle.',
-  },
-]
+const initialLogs: WorkoutLog[] = []
+
+function mergeWorkoutLogs(currentLogs: WorkoutLog[], nextLogs: WorkoutLog[]) {
+  const merged = new Map<string, WorkoutLog>()
+
+  for (const log of [...nextLogs, ...currentLogs]) {
+    const key = `${log.source ?? 'app'}-${log.startedAt ?? log.date}-${log.title}-${log.durationMinutes}`
+
+    if (!merged.has(key)) {
+      merged.set(key, log)
+    }
+  }
+
+  return [...merged.values()].sort((left, right) => {
+    const leftTimestamp = new Date(left.startedAt ?? left.date).getTime()
+    const rightTimestamp = new Date(right.startedAt ?? right.date).getTime()
+    return rightTimestamp - leftTimestamp
+  })
+}
+
+function toLocalWorkoutLog(session: SessionSavePayload): WorkoutLog {
+  return {
+    id: crypto.randomUUID(),
+    date: session.startedAt.slice(0, 10),
+    title: session.title,
+    durationMinutes: session.durationMinutes,
+    note: session.note,
+    startedAt: session.startedAt,
+    endedAt: session.endedAt,
+    source: session.source,
+  }
+}
 
 function App() {
   const [currentView, setCurrentView] = useState<ViewId>('login')
@@ -56,12 +100,18 @@ function App() {
   const [isAuthBusy, setIsAuthBusy] = useState(false)
   const [authMessage, setAuthMessage] = useState(getSupabaseSetupMessage())
   const [authError, setAuthError] = useState('')
+  const [consentError, setConsentError] = useState('')
   const [health, setHealth] = useState<HealthMetrics>(initialHealth)
   const [logs, setLogs] = useState<WorkoutLog[]>(initialLogs)
   const [telemetry, setTelemetry] = useState(() => createInitialTelemetryState())
+  const [consentRecord, setConsentRecord] = useState<UserConsentRecord | null>(null)
+  const [presetMode, setPresetMode] = useState<PresetMode>(() => readPresetModePreference())
+  const [draftPreset, setDraftPreset] = useState<SessionPreset>(STANDARD_SESSION_PRESET)
+  const [activeSessionPreset, setActiveSessionPreset] = useState<SessionPreset>(STANDARD_SESSION_PRESET)
   const [isTelemetrySyncing, setIsTelemetrySyncing] = useState(false)
   const sessionRef = useRef<Session | null>(null)
   const pendingProviderRef = useRef<SocialAuthProvider | null>(null)
+  const lastUsageScreenRef = useRef('')
 
   const totalMinutes = useMemo(
     () => logs.reduce((total, item) => total + item.durationMinutes, 0),
@@ -71,9 +121,20 @@ function App() {
     () => buildInsightSnapshot({ health, telemetry, logs }),
     [health, logs, telemetry],
   )
+  const recommendedPreset = useMemo(
+    () => buildRecommendedSessionPreset({ health, telemetry, logs }),
+    [health, logs, telemetry],
+  )
   const isAuthenticated = session !== null
-  const activeView = currentView === 'login' ? 'dashboard' : currentView
   const accountEmail = session?.user.email ?? 'Signed-in user'
+  const hasCurrentConsent = hasAcceptedCurrentLegalVersions(consentRecord)
+  const usageAnalyticsEnabled = hasCurrentConsent && Boolean(consentRecord?.acceptedUsageAnalyticsAt)
+  const navActiveView =
+    currentView === 'pre-session'
+      ? 'stopwatch'
+      : currentView === 'login' || currentView === 'consent'
+        ? 'dashboard'
+        : currentView
 
   const handleAuthRedirect = useCallback(async (url: string) => {
     if (!isAuthRedirectUrl(url)) {
@@ -91,8 +152,8 @@ function App() {
       if (nextSession) {
         sessionRef.current = nextSession
         setSession(nextSession)
-        setCurrentView('dashboard')
         setAuthMessage('')
+        setIsAuthBootstrapping(true)
       }
     } catch (error) {
       setAuthError(formatAuthError(error))
@@ -134,16 +195,30 @@ function App() {
       sessionRef.current = data.session ?? null
       setSession(data.session ?? null)
       setCurrentView(data.session ? 'dashboard' : 'login')
-      setIsAuthBootstrapping(false)
+      setIsAuthBootstrapping(Boolean(data.session))
 
-      const { data: listenerData } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      const { data: listenerData } = supabase.auth.onAuthStateChange((event, nextSession) => {
         sessionRef.current = nextSession
         setSession(nextSession)
-        setCurrentView(nextSession ? 'dashboard' : 'login')
 
         if (nextSession) {
+          if (event === 'SIGNED_IN') {
+            setCurrentView('dashboard')
+          }
+
           setAuthError('')
           setAuthMessage('')
+          setIsAuthBootstrapping(true)
+        } else {
+          setCurrentView('login')
+          setHealth(initialHealth)
+          setLogs(initialLogs)
+          setTelemetry(createInitialTelemetryState())
+          setConsentRecord(null)
+          setDraftPreset(STANDARD_SESSION_PRESET)
+          setActiveSessionPreset(STANDARD_SESSION_PRESET)
+          setConsentError('')
+          setIsAuthBootstrapping(false)
         }
 
         setIsAuthBusy(false)
@@ -159,6 +234,70 @@ function App() {
       authSubscription?.unsubscribe()
     }
   }, [])
+
+  useEffect(() => {
+    let isMounted = true
+
+    const bootstrapAuthenticatedData = async () => {
+      if (!session?.user.id) {
+        return
+      }
+
+      setIsAuthBootstrapping(true)
+
+      try {
+        await ensureProfile({
+          userId: session.user.id,
+          email: session.user.email,
+        })
+
+        const persistedState = await loadPersistedAppState({
+          userId: session.user.id,
+          fallbackHealth: initialHealth,
+          fallbackTelemetry: createInitialTelemetryState(),
+        })
+
+        if (!isMounted) {
+          return
+        }
+
+        setHealth(persistedState.health)
+        setLogs(persistedState.logs)
+        setTelemetry(persistedState.telemetry)
+        setConsentRecord(persistedState.consent)
+        setDraftPreset(
+          getDraftPresetForMode(
+            presetMode,
+            buildRecommendedSessionPreset({
+              health: persistedState.health,
+              telemetry: persistedState.telemetry,
+              logs: persistedState.logs,
+            }),
+          ),
+        )
+        setCurrentView(resolveAuthenticatedView(persistedState.consent))
+      } catch (error) {
+        if (!isMounted) {
+          return
+        }
+
+        const message =
+          error instanceof Error ? error.message : 'Could not load your saved NavaFit production data.'
+        setAuthError(message)
+        setCurrentView('dashboard')
+      } finally {
+        if (isMounted) {
+          setIsAuthBootstrapping(false)
+        }
+      }
+    }
+
+    void bootstrapAuthenticatedData()
+
+    return () => {
+      isMounted = false
+    }
+  }, [presetMode, session?.user.id, session?.user.email])
 
   useEffect(() => {
     if (!usesNativeAuthRedirect()) {
@@ -280,6 +419,7 @@ function App() {
       }
 
       setAuthMessage('You have signed out.')
+      setConsentError('')
     } catch (error) {
       setAuthError(formatAuthError(error))
     } finally {
@@ -288,8 +428,27 @@ function App() {
     }
   }, [])
 
+  const handleConsentSubmit = useCallback(async (submission: { acceptsHealthSync: boolean; acceptsUsageAnalytics: boolean }) => {
+    if (!session?.user.id) {
+      return
+    }
+
+    setIsAuthBusy(true)
+    setConsentError('')
+
+    try {
+      const savedConsent = await upsertUserConsent(session.user.id, submission)
+      setConsentRecord(savedConsent)
+      setCurrentView('dashboard')
+    } catch (error) {
+      setConsentError(error instanceof Error ? error.message : 'Could not save your consent choices.')
+    } finally {
+      setIsAuthBusy(false)
+    }
+  }, [session?.user.id])
+
   const handleTelemetrySync = useCallback(async () => {
-    if (isTelemetrySyncing) {
+    if (isTelemetrySyncing || !session?.user.id) {
       return
     }
 
@@ -302,16 +461,24 @@ function App() {
     }))
 
     try {
-      const synced = await syncTelemetry(health)
+      const synced = await syncTelemetry({
+        userId: session.user.id,
+        currentHealth: health,
+        previousTelemetry: telemetry,
+        allowHealthSync: Boolean(consentRecord?.acceptedHealthSyncAt && hasCurrentConsent),
+      })
       setHealth(synced.health)
       setTelemetry(synced.telemetry)
+      if (synced.importedWorkouts.length > 0) {
+        setLogs((previous) => mergeWorkoutLogs(previous, synced.importedWorkouts))
+      }
     } finally {
       setIsTelemetrySyncing(false)
     }
-  }, [health, isTelemetrySyncing])
+  }, [consentRecord?.acceptedHealthSyncAt, hasCurrentConsent, health, isTelemetrySyncing, session?.user.id, telemetry])
 
   useEffect(() => {
-    if (!isAuthenticated) {
+    if (!isAuthenticated || !hasCurrentConsent || isAuthBootstrapping) {
       return
     }
 
@@ -320,24 +487,85 @@ function App() {
     }
 
     void handleTelemetrySync()
-  }, [handleTelemetrySync, isAuthenticated, telemetry.lastSyncLabel])
+  }, [handleTelemetrySync, hasCurrentConsent, isAuthBootstrapping, isAuthenticated, telemetry.lastSyncLabel])
 
-  const handleSaveStopwatchSession = useCallback((minutes: number) => {
-    if (minutes <= 0) {
+  useEffect(() => {
+    if (!isAuthenticated || !usageAnalyticsEnabled || !session?.user.id) {
+      lastUsageScreenRef.current = ''
       return
     }
 
-    setLogs((previous) => [
-      {
-        id: crypto.randomUUID(),
-        date: new Date().toISOString().slice(0, 10),
-        title: 'Combat Stopwatch Session',
-        durationMinutes: minutes,
-        note: 'Auto-captured from stopwatch prototype.',
+    const usageKey = `${session.user.id}:${currentView}`
+
+    if (lastUsageScreenRef.current === usageKey) {
+      return
+    }
+
+    lastUsageScreenRef.current = usageKey
+
+    void recordAppUsageEvent({
+      userId: session.user.id,
+      screen: currentView,
+      eventName: 'screen_view',
+      metadata: {
+        presetMode,
+        healthSource: telemetry.healthSourceLabel,
       },
-      ...previous,
-    ])
+    }).catch(() => undefined)
+  }, [currentView, isAuthenticated, presetMode, session?.user.id, telemetry.healthSourceLabel, usageAnalyticsEnabled])
+
+  useEffect(() => {
+    if (currentView !== 'pre-session') {
+      return
+    }
+
+    setDraftPreset(getDraftPresetForMode(presetMode, recommendedPreset))
+  }, [currentView, presetMode, recommendedPreset])
+
+  const handleOpenPreSession = useCallback(() => {
+    setDraftPreset(getDraftPresetForMode(presetMode, recommendedPreset))
+    setCurrentView('pre-session')
+  }, [presetMode, recommendedPreset])
+
+  const handleChangePresetMode = useCallback((mode: PresetMode) => {
+    setPresetMode(mode)
+    savePresetModePreference(mode)
+    setDraftPreset(getDraftPresetForMode(mode, recommendedPreset))
+  }, [recommendedPreset])
+
+  const handleUseRecommendedPreset = useCallback(() => {
+    setDraftPreset(recommendedPreset)
+  }, [recommendedPreset])
+
+  const handleUseStandardPreset = useCallback(() => {
+    setDraftPreset(STANDARD_SESSION_PRESET)
   }, [])
+
+  const handleStartSession = useCallback(() => {
+    setActiveSessionPreset(draftPreset)
+    setCurrentView('stopwatch')
+  }, [draftPreset])
+
+  const handleSaveStopwatchSession = useCallback(async (sessionPayload: SessionSavePayload) => {
+    if (sessionPayload.durationMinutes <= 0) {
+      return
+    }
+
+    if (session?.user.id && isSupabaseConfigured) {
+      try {
+        const savedWorkout = await saveWorkoutSession(session.user.id, sessionPayload)
+        setLogs((previous) => mergeWorkoutLogs(previous, [savedWorkout]))
+        return
+      } catch {
+        setTelemetry((previous) => ({
+          ...previous,
+          lastSyncLabel: 'Session saved locally. Supabase retry needed.',
+        }))
+      }
+    }
+
+    setLogs((previous) => mergeWorkoutLogs(previous, [toLocalWorkoutLog(sessionPayload)]))
+  }, [session?.user.id])
 
   return (
     <div className="relative min-h-screen overflow-hidden text-[var(--text-primary)]">
@@ -357,10 +585,36 @@ function App() {
               isSupabaseConfigured={isSupabaseConfigured}
             />
           </div>
+        ) : isAuthBootstrapping ? (
+          <div className="app-screen screen-fade">
+            <section className="screen-shell justify-center">
+              <div className="content-stack my-auto">
+                <section className="glass-sheet text-center">
+                  <p className="section-kicker">Secure bootstrapping</p>
+                  <h2 className="section-title mt-2">Loading your production data</h2>
+                  <p className="support-copy mt-3">
+                    NavaFit is restoring your profile, consent state, recent workouts, and the latest telemetry snapshot.
+                  </p>
+                </section>
+              </div>
+            </section>
+          </div>
+        ) : currentView === 'consent' ? (
+          <div className="app-screen screen-fade">
+            <ConsentScreen
+              accountEmail={accountEmail}
+              initialHealthSync={Boolean(consentRecord?.acceptedHealthSyncAt)}
+              initialUsageAnalytics={Boolean(consentRecord?.acceptedUsageAnalyticsAt)}
+              isSaving={isAuthBusy}
+              error={consentError}
+              onSubmit={handleConsentSubmit}
+              onSignOut={handleSignOut}
+            />
+          </div>
         ) : (
           <>
-            <div key={activeView} className="app-screen screen-fade app-screen-with-tab-nav">
-              {activeView === 'dashboard' && (
+            <div key={currentView} className="app-screen screen-fade app-screen-with-tab-nav">
+              {currentView === 'dashboard' && (
                 <DashboardScreen
                   health={health}
                   insights={insights}
@@ -369,31 +623,48 @@ function App() {
                   isTelemetrySyncing={isTelemetrySyncing}
                   onSyncTelemetry={handleTelemetrySync}
                   totalMinutes={totalMinutes}
-                  onOpenStopwatch={() => setCurrentView('stopwatch')}
+                  onOpenStopwatch={handleOpenPreSession}
                   onOpenBiometrics={() => setCurrentView('biometrics')}
                   accountEmail={accountEmail}
                   onSignOut={handleSignOut}
                   isSigningOut={isAuthBusy}
+                  recommendedPreset={recommendedPreset}
+                  presetMode={presetMode}
                 />
               )}
 
-              {activeView === 'stopwatch' && (
+              {currentView === 'pre-session' && (
+                <PreSessionScreen
+                  presetMode={presetMode}
+                  recommendedPreset={recommendedPreset}
+                  draftPreset={draftPreset}
+                  onBack={() => setCurrentView('dashboard')}
+                  onChangeMode={handleChangePresetMode}
+                  onUseRecommended={handleUseRecommendedPreset}
+                  onUseStandard={handleUseStandardPreset}
+                  onStartSession={handleStartSession}
+                />
+              )}
+
+              {currentView === 'stopwatch' && (
                 <StopwatchScreen
                   onBack={() => setCurrentView('dashboard')}
                   weatherSnapshot={telemetry.weatherSnapshot}
                   heartRate={health.heartRate}
+                  sessionPreset={activeSessionPreset}
                   onSaveSession={handleSaveStopwatchSession}
                 />
               )}
 
-              {activeView === 'breath' && (
+              {currentView === 'breath' && (
                 <BreathScreen
                   health={health}
+                  sessionPreset={activeSessionPreset}
                   onBack={() => setCurrentView('dashboard')}
                 />
               )}
 
-              {activeView === 'biometrics' && (
+              {currentView === 'biometrics' && (
                 <BiometricsScreen
                   health={health}
                   insights={insights}
@@ -405,25 +676,25 @@ function App() {
             <nav className="tab-nav">
               <TabButton
                 label="Dashboard"
-                active={activeView === 'dashboard'}
+                active={navActiveView === 'dashboard'}
                 icon={<HomeIcon />}
                 onClick={() => setCurrentView('dashboard')}
               />
               <TabButton
                 label="Stopwatch"
-                active={activeView === 'stopwatch'}
+                active={navActiveView === 'stopwatch'}
                 icon={<ChronoIcon />}
-                onClick={() => setCurrentView('stopwatch')}
+                onClick={handleOpenPreSession}
               />
               <TabButton
                 label="Breath"
-                active={activeView === 'breath'}
+                active={navActiveView === 'breath'}
                 icon={<BreathIcon />}
                 onClick={() => setCurrentView('breath')}
               />
               <TabButton
                 label="Recovery"
-                active={activeView === 'biometrics'}
+                active={navActiveView === 'biometrics'}
                 icon={<PulseIcon />}
                 onClick={() => setCurrentView('biometrics')}
               />

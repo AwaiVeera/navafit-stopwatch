@@ -69,6 +69,7 @@ function buildSyncInsight(telemetry: TelemetryState): InsightItem {
   const readyFeeds = [telemetry.healthApp, telemetry.fitnessWatch, telemetry.weather].filter(
     (status) => status === 'ready',
   ).length
+  const hasConnectedHealth = /apple|garmin/i.test(telemetry.healthSourceLabel)
   const weatherMode =
     telemetry.weatherSnapshot.source === 'simulated'
       ? 'Weather still uses simulated input.'
@@ -79,10 +80,16 @@ function buildSyncInsight(telemetry: TelemetryState): InsightItem {
   return {
     id: 'sync-readiness',
     domain: 'sync',
-    title: readyFeeds >= 2 ? 'Prototype data contract is stable' : 'Telemetry inputs are still partial',
-    summary: `${weatherMode} The app can already render insight cards against this contract, which keeps the future AI integration path clean.`,
+    title: readyFeeds >= 2
+      ? hasConnectedHealth
+        ? 'Connected data path is active'
+        : 'Telemetry contract is partially live'
+      : 'Telemetry inputs are still partial',
+    summary: hasConnectedHealth
+      ? `${weatherMode} ${telemetry.healthSourceLabel} is now feeding the preset and insight layer.`
+      : `${weatherMode} Health sync is still waiting for a connected source, so NavaFit falls back to its app baseline.`,
     emphasis: `${readyFeeds}/3 telemetry feeds ready`,
-    actionLabel: 'Swap scaffolded inputs for live connectors later',
-    source: 'simulated-input',
+    actionLabel: hasConnectedHealth ? 'Review the next preset before training' : 'Connect health data to unlock live presets',
+    source: hasConnectedHealth ? 'deterministic' : 'simulated-input',
   }
 }

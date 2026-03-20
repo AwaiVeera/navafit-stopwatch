@@ -1,14 +1,21 @@
-import type { HealthMetrics, TelemetryState, WeatherSnapshot } from '../types'
+import {
+  recordSyncEvent,
+  saveDeviceConnections,
+  saveImportedWorkouts,
+  saveTelemetrySnapshot,
+} from './data'
+import { supportsNativeHealthSync, syncNativeHealth } from './health'
+import type {
+  TelemetryState,
+  TelemetrySyncContext,
+  TelemetrySyncResult,
+  WeatherSnapshot,
+} from '../types'
 
 interface DeviceCapabilities {
   healthApp: boolean
   fitnessWatch: boolean
   weather: boolean
-}
-
-interface TelemetrySyncResult {
-  health: HealthMetrics
-  telemetry: TelemetryState
 }
 
 const SYNC_DELAY_MS = 280
@@ -26,28 +33,133 @@ export function createInitialTelemetryState(): TelemetryState {
       source: 'disabled',
     },
     lastSyncLabel: 'Not synced yet',
+    healthSourceLabel: capabilities.healthApp ? 'Waiting for consent' : 'Native health unavailable',
+    watchSourceLabel: 'Watch not connected',
   }
 }
 
-export async function syncTelemetry(currentHealth: HealthMetrics): Promise<TelemetrySyncResult> {
+export function buildSyncErrorTelemetry(previousTelemetry: TelemetryState, message: string): TelemetryState {
+  return {
+    ...previousTelemetry,
+    healthApp: 'error',
+    fitnessWatch: previousTelemetry.fitnessWatch === 'unavailable' ? 'unavailable' : 'error',
+    weather: previousTelemetry.weather === 'unavailable' ? 'unavailable' : 'ready',
+    lastSyncLabel: message,
+  }
+}
+
+export async function syncTelemetry({
+  userId,
+  currentHealth,
+  previousTelemetry,
+  allowHealthSync,
+}: TelemetrySyncContext): Promise<TelemetrySyncResult> {
   const capabilities = detectCapabilities()
   await sleep(SYNC_DELAY_MS)
-
-  const syncedHealth = buildSyncedHealth(currentHealth)
+  const startedAt = new Date().toISOString()
   const weatherSnapshot = buildWeatherSnapshot(capabilities.weather)
+  const completedAt = new Date().toISOString()
 
-  return {
-    health: syncedHealth,
-    telemetry: {
-      healthApp: capabilities.healthApp ? 'ready' : 'unavailable',
-      fitnessWatch: capabilities.fitnessWatch ? 'ready' : 'unavailable',
-      weather: capabilities.weather ? 'ready' : 'unavailable',
-      weatherSnapshot,
-      lastSyncLabel: `Synced ${new Date().toLocaleTimeString([], {
-        hour: '2-digit',
-        minute: '2-digit',
-      })}`,
-    },
+  try {
+    const nativeHealthSync =
+      allowHealthSync && supportsNativeHealthSync()
+        ? await syncNativeHealth(currentHealth)
+        : {
+            source: 'app' as const,
+            health: currentHealth,
+            importedWorkouts: [],
+            deviceConnections: [],
+            lastSyncedAt: completedAt,
+            providerLabel: allowHealthSync
+              ? 'Apple Health needs the native iPhone build'
+              : 'Health sync waiting for consent',
+            summary: allowHealthSync
+              ? 'Open the native iPhone build to sync Apple Health.'
+              : 'Accept health sync consent to start pulling Apple Health data.',
+          }
+
+    const savedWorkouts = nativeHealthSync.importedWorkouts.length
+      ? await saveImportedWorkouts(userId, nativeHealthSync.importedWorkouts)
+      : []
+
+    await saveTelemetrySnapshot({
+      userId,
+      source: nativeHealthSync.source,
+      health: nativeHealthSync.health,
+      weatherCondition: weatherSnapshot.condition,
+      weatherTemperatureC: weatherSnapshot.temperatureC,
+      recordedAt: completedAt,
+    })
+
+    if (nativeHealthSync.deviceConnections.length > 0) {
+      await saveDeviceConnections(userId, nativeHealthSync.deviceConnections)
+      await recordSyncEvent({
+        userId,
+        provider: nativeHealthSync.source === 'apple_watch' ? 'apple_watch' : 'apple_health',
+        status: 'success',
+        startedAt,
+        completedAt,
+        details: {
+          summary: nativeHealthSync.summary,
+          workoutsImported: savedWorkouts.length,
+          providerLabel: nativeHealthSync.providerLabel,
+        },
+      })
+    }
+
+    return {
+      health: nativeHealthSync.health,
+      telemetry: {
+        healthApp: nativeHealthSync.deviceConnections.some((connection) => connection.provider === 'apple_health')
+          ? 'ready'
+          : allowHealthSync && capabilities.healthApp
+            ? 'idle'
+            : capabilities.healthApp
+              ? 'idle'
+              : 'unavailable',
+        fitnessWatch: nativeHealthSync.deviceConnections.some((connection) => connection.provider === 'apple_watch')
+          ? 'ready'
+          : capabilities.fitnessWatch
+            ? 'idle'
+            : 'unavailable',
+        weather: capabilities.weather ? 'ready' : 'unavailable',
+        weatherSnapshot,
+        lastSyncLabel: `Synced ${new Date(completedAt).toLocaleTimeString([], {
+          hour: '2-digit',
+          minute: '2-digit',
+        })}`,
+        healthSourceLabel: nativeHealthSync.providerLabel,
+        watchSourceLabel: nativeHealthSync.deviceConnections.some((connection) => connection.provider === 'apple_watch')
+          ? 'Apple Watch'
+          : 'Watch not connected',
+      },
+      deviceConnections: nativeHealthSync.deviceConnections,
+      importedWorkouts: savedWorkouts,
+    }
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Telemetry sync failed.'
+
+    try {
+      await recordSyncEvent({
+        userId,
+        provider: 'apple_health',
+        status: 'error',
+        startedAt,
+        completedAt: new Date().toISOString(),
+        details: {
+          message: errorMessage,
+        },
+      })
+    } catch {
+      // Ignore secondary logging failures so the UI can still recover.
+    }
+
+    return {
+      health: currentHealth,
+      telemetry: buildSyncErrorTelemetry(previousTelemetry, errorMessage),
+      deviceConnections: [],
+      importedWorkouts: [],
+    }
   }
 }
 
@@ -58,21 +170,9 @@ function detectCapabilities(): DeviceCapabilities {
   const geolocationAvailable = hasNavigator && 'geolocation' in navigator
 
   return {
-    // Real vendor auth/connect flows are TBD; this only checks runtime capability.
     healthApp: platformHasCapacitor,
     fitnessWatch: platformHasCapacitor,
     weather: geolocationAvailable,
-  }
-}
-
-function buildSyncedHealth(previous: HealthMetrics): HealthMetrics {
-  return {
-    heartRate: clamp(nudge(previous.heartRate, 3), 52, 188),
-    readiness: clamp(nudge(previous.readiness, 4), 0, 100),
-    stamina: clamp(nudge(previous.stamina, 3), 0, 100),
-    breathPerMinute: clamp(nudge(previous.breathPerMinute, 1), 6, 40),
-    endurance: clamp(nudge(previous.endurance, 3), 0, 100),
-    stressLevel: clamp(nudge(previous.stressLevel, 4), 0, 100),
   }
 }
 

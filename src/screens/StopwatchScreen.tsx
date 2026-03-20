@@ -1,18 +1,20 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
-import type { WeatherSnapshot } from '../types'
+import type { SessionPreset, SessionSavePayload, WeatherSnapshot } from '../types'
 
 interface StopwatchScreenProps {
   onBack: () => void
   weatherSnapshot: WeatherSnapshot
   heartRate: number
-  onSaveSession: (minutes: number) => void
+  sessionPreset: SessionPreset
+  onSaveSession: (session: SessionSavePayload) => Promise<void> | void
 }
 
 export function StopwatchScreen({
   onBack,
   weatherSnapshot,
   heartRate,
+  sessionPreset,
   onSaveSession,
 }: StopwatchScreenProps) {
   const [isRunning, setIsRunning] = useState(false)
@@ -24,6 +26,7 @@ export function StopwatchScreen({
   const carriedElapsedRef = useRef(0)
   const latestElapsedRef = useRef(0)
   const hasSavedSessionRef = useRef(false)
+  const sessionStartedAtRef = useRef<string | null>(null)
 
   useEffect(() => {
     if (!isRunning) {
@@ -60,6 +63,7 @@ export function StopwatchScreen({
         ? latestElapsedRef.current
         : carriedElapsedRef.current + (performance.now() - runningStartRef.current)
     const minutes = Math.floor(liveElapsed / 60000)
+
     if (hasSavedSessionRef.current) {
       return
     }
@@ -69,8 +73,25 @@ export function StopwatchScreen({
     }
 
     hasSavedSessionRef.current = true
-    onSaveSession(minutes)
-  }, [onSaveSession])
+    const endedAt = new Date().toISOString()
+    const startedAt = sessionStartedAtRef.current ?? new Date(Date.now() - liveElapsed).toISOString()
+
+    void onSaveSession({
+      title: sessionPreset.title,
+      note: `Captured from the adaptive stopwatch using the ${sessionPreset.breathPreset.label}.`,
+      durationMinutes: minutes,
+      startedAt,
+      endedAt,
+      source: 'app',
+      metadata: {
+        presetId: sessionPreset.id,
+        presetTitle: sessionPreset.title,
+        presetTargetMinutes: sessionPreset.targetMinutes,
+        breathPreset: sessionPreset.breathPreset.label,
+        lapCount: laps.length,
+      },
+    })
+  }, [laps.length, onSaveSession, sessionPreset])
 
   useEffect(() => {
     return () => {
@@ -79,7 +100,7 @@ export function StopwatchScreen({
   }, [persistSession])
 
   const displayTime = useMemo(() => formatStopwatch(elapsedMs), [elapsedMs])
-  const sessionProgress = Math.min(elapsedMs / (45 * 60 * 1000), 1)
+  const sessionProgress = Math.min(elapsedMs / (sessionPreset.targetMinutes * 60 * 1000), 1)
   const weatherLabel =
     weatherSnapshot.temperatureC === null
       ? weatherSnapshot.condition
@@ -96,6 +117,7 @@ export function StopwatchScreen({
     runningStartRef.current = null
     latestElapsedRef.current = 0
     hasSavedSessionRef.current = false
+    sessionStartedAtRef.current = null
     setElapsedMs(0)
     setLaps([])
   }
@@ -109,6 +131,10 @@ export function StopwatchScreen({
       setElapsedMs(carriedElapsedRef.current)
       setIsRunning(false)
       return
+    }
+
+    if (!sessionStartedAtRef.current) {
+      sessionStartedAtRef.current = new Date().toISOString()
     }
 
     runningStartRef.current = performance.now()
@@ -139,8 +165,8 @@ export function StopwatchScreen({
       <div className="content-stack space-y-4">
         <article className="glass-sheet">
           <p className="section-kicker">Precision Chronometer</p>
-          <h2 className="section-title mt-2">Training Session</h2>
-          <p className="support-copy mt-2">Active timing for Kalari holds, macebell swings, and paced recovery blocks.</p>
+          <h2 className="section-title mt-2">{sessionPreset.title}</h2>
+          <p className="support-copy mt-2">{sessionPreset.summary}</p>
 
           <div className="mt-6 rounded-[2rem] border border-white/8 bg-black/10 px-5 py-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
             <p className="hud-font text-[3rem] font-semibold tracking-[-0.06em] text-[var(--text-primary)] sm:text-[3.4rem]">
@@ -156,7 +182,7 @@ export function StopwatchScreen({
                 />
               </div>
               <div className="info-row text-sm text-[var(--text-muted)]">
-                <span>45 min target</span>
+                <span>{sessionPreset.targetMinutes} min target</span>
                 <span className="hud-font text-[var(--text-secondary)]">{Math.round(sessionProgress * 100)}%</span>
               </div>
             </div>
@@ -165,7 +191,7 @@ export function StopwatchScreen({
           <div className="metric-chip-grid mt-4">
             <MetricChip label="Weather" value={weatherLabel} />
             <MetricChip label="Heart Rate" value={`${heartRate} BPM`} />
-            <MetricChip label="HRV" value="74 ms" />
+            <MetricChip label="Breath" value={sessionPreset.breathPreset.label} />
           </div>
 
           <div className="button-row mt-5">

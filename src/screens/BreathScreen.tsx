@@ -1,32 +1,35 @@
 import { useEffect, useMemo, useState } from 'react'
 
-import type { HealthMetrics } from '../types'
+import type { HealthMetrics, SessionPreset } from '../types'
 
 interface BreathScreenProps {
   health: HealthMetrics
+  sessionPreset: SessionPreset
   onBack: () => void
 }
 
-const BREATH_CYCLE_SECONDS = 10
-
-export function BreathScreen({ health, onBack }: BreathScreenProps) {
+export function BreathScreen({ health, sessionPreset, onBack }: BreathScreenProps) {
   const [breathSecond, setBreathSecond] = useState(0)
+  const breathCycleSeconds = sessionPreset.breathPreset.cycleSeconds
 
   useEffect(() => {
     const breathId = window.setInterval(() => {
-      setBreathSecond((previous) => (previous + 1) % BREATH_CYCLE_SECONDS)
+      setBreathSecond((previous) => (previous + 1) % breathCycleSeconds)
     }, 1000)
 
     return () => window.clearInterval(breathId)
-  }, [])
+  }, [breathCycleSeconds])
+
+  const inhaleBoundary = sessionPreset.breathPreset.inhaleSeconds
+  const holdBoundary = inhaleBoundary + sessionPreset.breathPreset.holdSeconds
 
   const phaseLabel =
-    breathSecond < 4 ? 'Inhale' : breathSecond < 6 ? 'Hold' : 'Exhale'
+    breathSecond < inhaleBoundary ? 'Inhale' : breathSecond < holdBoundary ? 'Hold' : 'Exhale'
 
   const phaseRingClass =
-    breathSecond < 4
+    breathSecond < inhaleBoundary
       ? 'breath-inhale'
-      : breathSecond < 6
+      : breathSecond < holdBoundary
         ? 'breath-hold'
         : 'breath-exhale'
 
@@ -58,7 +61,9 @@ export function BreathScreen({ health, onBack }: BreathScreenProps) {
         <article className="glass-sheet">
           <p className="section-kicker">Guided Breath</p>
           <h2 className="section-title mt-2">Ujjayi Breath Sync</h2>
-          <p className="support-copy mt-2">Dedicated 4-2-4 pacing so the breathing guide is no longer competing with training controls.</p>
+          <p className="support-copy mt-2">
+            This guide follows the currently active session preset so breath cadence and stopwatch timing stay aligned.
+          </p>
 
           <div className="mt-8 grid place-items-center">
             <div className={`breath-orb ${phaseRingClass}`}>
@@ -69,15 +74,15 @@ export function BreathScreen({ health, onBack }: BreathScreenProps) {
           <div className="mt-6 grid grid-cols-3 gap-3 text-center">
             <div className="glass-card-compact">
               <p className="label-text">Inhale</p>
-              <p className="mt-2 text-[1.05rem] text-[var(--text-primary)]">4s</p>
+              <p className="mt-2 text-[1.05rem] text-[var(--text-primary)]">{sessionPreset.breathPreset.inhaleSeconds}s</p>
             </div>
             <div className="glass-card-compact">
               <p className="label-text">Hold</p>
-              <p className="mt-2 text-[1.05rem] text-[var(--text-primary)]">2s</p>
+              <p className="mt-2 text-[1.05rem] text-[var(--text-primary)]">{sessionPreset.breathPreset.holdSeconds}s</p>
             </div>
             <div className="glass-card-compact">
               <p className="label-text">Exhale</p>
-              <p className="mt-2 text-[1.05rem] text-[var(--text-primary)]">4s</p>
+              <p className="mt-2 text-[1.05rem] text-[var(--text-primary)]">{sessionPreset.breathPreset.exhaleSeconds}s</p>
             </div>
           </div>
         </article>
@@ -88,7 +93,7 @@ export function BreathScreen({ health, onBack }: BreathScreenProps) {
               <p className="title-font text-[1.35rem] font-medium text-[var(--text-primary)]">Breath Markers</p>
               <p className="support-copy mt-1">{breathCue}</p>
             </div>
-            <div className="dashboard-status-chip">4-2-4</div>
+            <div className="dashboard-status-chip">{sessionPreset.breathPreset.label}</div>
           </div>
 
           <div className="metric-chip-grid mt-4">

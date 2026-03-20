@@ -37,6 +37,10 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSHealthShareUsageDescription</key>
+	<string>NavaFit reads Apple Health data that you approve so it can sync workouts and tailor future session presets.</string>
+	<key>NSHealthUpdateUsageDescription</key>
+	<string>NavaFit writes health entries only when you explicitly choose to save supported workout data.</string>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>

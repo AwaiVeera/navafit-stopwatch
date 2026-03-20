@@ -1,6 +1,13 @@
 import { useRef, useState } from 'react'
 
-import type { HealthMetrics, InsightSnapshot, TelemetryState, WorkoutLog } from '../types'
+import type {
+  HealthMetrics,
+  InsightSnapshot,
+  PresetMode,
+  SessionPreset,
+  TelemetryState,
+  WorkoutLog,
+} from '../types'
 
 interface DashboardScreenProps {
   health: HealthMetrics
@@ -15,6 +22,8 @@ interface DashboardScreenProps {
   accountEmail: string
   onSignOut: () => void
   isSigningOut: boolean
+  recommendedPreset: SessionPreset
+  presetMode: PresetMode
 }
 
 export function DashboardScreen({
@@ -30,6 +39,8 @@ export function DashboardScreen({
   accountEmail,
   onSignOut,
   isSigningOut,
+  recommendedPreset,
+  presetMode,
 }: DashboardScreenProps) {
   const [reportRange, setReportRange] = useState<ReportRange>('month')
   const dashboardInsights = insights.items.filter((item) => item.domain !== 'recovery')
@@ -69,7 +80,7 @@ export function DashboardScreen({
               <p className="section-kicker">Connected Core</p>
               <p className="support-copy mt-1">Ready to track your progress</p>
             </div>
-            <div className="dashboard-status-chip">Watch Connected</div>
+            <div className="dashboard-status-chip">{telemetry.watchSourceLabel}</div>
           </div>
 
           <div className="hero-dashboard-stage">
@@ -132,6 +143,32 @@ export function DashboardScreen({
               {isSigningOut ? 'Signing out...' : 'Sign out'}
             </button>
           </div>
+        </section>
+
+        <section className="glass-sheet">
+          <div className="info-row">
+            <div>
+              <p className="label-text">Next Session</p>
+              <p className="title-font mt-2 text-[1.2rem] font-medium text-[var(--text-primary)]">
+                {recommendedPreset.title}
+              </p>
+              <p className="support-copy mt-1">{recommendedPreset.summary}</p>
+            </div>
+            <div className="text-right">
+              <p className="metric-number-soft text-[1.6rem]">{recommendedPreset.targetMinutes}</p>
+              <p className="metric-unit">min</p>
+            </div>
+          </div>
+
+          <div className="metric-chip-grid mt-4">
+            <MetricChip label="Mode" value={presetMode === 'auto_apply' ? 'Auto Apply' : 'Suggest Only'} unit="" />
+            <MetricChip label="Breath" value={recommendedPreset.breathPreset.label} unit="" />
+            <MetricChip label="Source" value={recommendedPreset.sourceLabel} unit="" />
+          </div>
+
+          <button type="button" className="primary-btn primary-btn-strong mt-5 w-full justify-center" onClick={onOpenStopwatch}>
+            Review adaptive preset
+          </button>
         </section>
 
         <section className="glass-sheet space-y-4">
@@ -232,18 +269,24 @@ export function DashboardScreen({
           </div>
 
           <div className="mt-4 space-y-3">
-            {logs.map((log) => (
-              <div key={log.id} className="glass-card">
-                <div className="info-row">
-                  <div>
-                    <p className="title-font text-[1.05rem] font-medium text-[var(--text-primary)]">{log.title}</p>
-                    <p className="mt-1 text-sm text-[var(--text-muted)]">{log.date}</p>
-                  </div>
-                  <p className="metric-number-soft text-[1.45rem]">{log.durationMinutes}m</p>
-                </div>
-                <p className="mt-3 text-sm leading-relaxed text-[var(--text-secondary)]">{log.note}</p>
+            {logs.length === 0 ? (
+              <div className="glass-card text-sm text-[var(--text-secondary)]">
+                No synced sessions yet. Start a stopwatch session or sync Apple Health to populate this history.
               </div>
-            ))}
+            ) : (
+              logs.map((log) => (
+                <div key={log.id} className="glass-card">
+                  <div className="info-row">
+                    <div>
+                      <p className="title-font text-[1.05rem] font-medium text-[var(--text-primary)]">{log.title}</p>
+                      <p className="mt-1 text-sm text-[var(--text-muted)]">{log.date}</p>
+                    </div>
+                    <p className="metric-number-soft text-[1.45rem]">{log.durationMinutes}m</p>
+                  </div>
+                  <p className="mt-3 text-sm leading-relaxed text-[var(--text-secondary)]">{log.note}</p>
+                </div>
+              ))
+            )}
           </div>
         </section>
       </div>
