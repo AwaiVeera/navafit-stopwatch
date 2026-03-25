@@ -250,7 +250,7 @@ function MetricChip({ label, value }: { label: string; value: string }) {
   return (
     <div className="metric-chip">
       <p className="metric-chip-label">{label}</p>
-      <p className="mt-3 text-sm leading-snug text-[var(--text-primary)]">{value}</p>
+      <p className="metric-chip-value mt-3">{value}</p>
     </div>
   )
 }

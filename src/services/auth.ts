@@ -12,6 +12,7 @@ interface EmailAuthParams {
 
 interface EmailAuthResult {
   message: string
+  hasSession: boolean
 }
 
 const providerMap: Record<SocialAuthProvider, Provider> = {
@@ -37,13 +38,16 @@ export async function submitEmailAuth({
   }
 
   if (mode === 'sign-in') {
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password })
 
     if (error) {
       throw error
     }
 
-    return { message: 'Signed in successfully.' }
+    return {
+      message: 'Signed in successfully.',
+      hasSession: Boolean(data.session),
+    }
   }
 
   const { data, error } = await supabase.auth.signUp({
@@ -59,10 +63,16 @@ export async function submitEmailAuth({
   }
 
   if (data.session) {
-    return { message: 'Account created and signed in.' }
+    return {
+      message: 'Account created and signed in.',
+      hasSession: true,
+    }
   }
 
-  return { message: 'Account created. Check your email to confirm before signing in.' }
+  return {
+    message: 'Account created. Check your email to confirm before signing in.',
+    hasSession: false,
+  }
 }
 
 export async function startSocialAuth(provider: SocialAuthProvider) {

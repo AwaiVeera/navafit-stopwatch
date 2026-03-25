@@ -329,10 +329,14 @@ function MetricChip({
   return (
     <div className="metric-chip">
       <p className="metric-chip-label">{label}</p>
-      <div className="mt-3 flex items-end gap-1">
-        <p className="metric-chip-value">{value}</p>
-        {unit ? <p className="metric-unit">{unit}</p> : null}
-      </div>
+      {unit ? (
+        <div className="metric-chip-value-row mt-3">
+          <p className="metric-chip-value">{value}</p>
+          <p className="metric-unit">{unit}</p>
+        </div>
+      ) : (
+        <p className="metric-chip-value mt-3">{value}</p>
+      )}
     </div>
   )
 }

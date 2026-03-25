@@ -110,6 +110,7 @@ function App() {
   const [activeSessionPreset, setActiveSessionPreset] = useState<SessionPreset>(STANDARD_SESSION_PRESET)
   const [isTelemetrySyncing, setIsTelemetrySyncing] = useState(false)
   const sessionRef = useRef<Session | null>(null)
+  const presetModeRef = useRef(presetMode)
   const pendingProviderRef = useRef<SocialAuthProvider | null>(null)
   const lastUsageScreenRef = useRef('')
 
@@ -141,6 +142,13 @@ function App() {
       return
     }
 
+    if (sessionRef.current && !pendingProviderRef.current) {
+      await Browser.close().catch(() => undefined)
+      return
+    }
+
+    let shouldKeepBootstrapping = false
+
     setIsAuthBusy(true)
     setAuthError('')
     setAuthMessage('Finalizing secure sign-in...')
@@ -150,10 +158,13 @@ function App() {
       const nextSession = await finalizeAuthFromUrl(url)
 
       if (nextSession) {
+        shouldKeepBootstrapping = true
         sessionRef.current = nextSession
         setSession(nextSession)
         setAuthMessage('')
         setIsAuthBootstrapping(true)
+      } else {
+        setAuthMessage('')
       }
     } catch (error) {
       setAuthError(formatAuthError(error))
@@ -161,7 +172,10 @@ function App() {
     } finally {
       pendingProviderRef.current = null
       setIsAuthBusy(false)
-      setIsAuthBootstrapping(false)
+
+      if (!shouldKeepBootstrapping) {
+        setIsAuthBootstrapping(false)
+      }
     }
   }, [])
 
@@ -170,8 +184,46 @@ function App() {
   }, [session])
 
   useEffect(() => {
+    presetModeRef.current = presetMode
+  }, [presetMode])
+
+  useEffect(() => {
     let isMounted = true
     let authSubscription: { unsubscribe: () => void } | null = null
+    const applyAuthStateChange = (event: string, nextSession: Session | null) => {
+      const previousUserId = sessionRef.current?.user.id ?? null
+
+      sessionRef.current = nextSession
+      setSession(nextSession)
+
+      if (nextSession) {
+        const enteredAuthenticatedSession =
+          previousUserId === null || nextSession.user.id !== previousUserId
+
+        if (event === 'SIGNED_IN' && enteredAuthenticatedSession) {
+          setCurrentView('dashboard')
+        }
+
+        setAuthError('')
+        setAuthMessage('')
+
+        if (enteredAuthenticatedSession) {
+          setIsAuthBootstrapping(true)
+        }
+      } else {
+        setCurrentView('login')
+        setHealth(initialHealth)
+        setLogs(initialLogs)
+        setTelemetry(createInitialTelemetryState())
+        setConsentRecord(null)
+        setDraftPreset(STANDARD_SESSION_PRESET)
+        setActiveSessionPreset(STANDARD_SESSION_PRESET)
+        setConsentError('')
+        setIsAuthBootstrapping(false)
+      }
+
+      setIsAuthBusy(false)
+    }
 
     const bootstrapSession = async () => {
       if (!supabase) {
@@ -204,30 +256,7 @@ function App() {
         setIsAuthBootstrapping(false)
 
         const { data: listenerData } = supabase.auth.onAuthStateChange((event, nextSession) => {
-          sessionRef.current = nextSession
-          setSession(nextSession)
-
-          if (nextSession) {
-            if (event === 'SIGNED_IN') {
-              setCurrentView('dashboard')
-            }
-
-            setAuthError('')
-            setAuthMessage('')
-            setIsAuthBootstrapping(true)
-          } else {
-            setCurrentView('login')
-            setHealth(initialHealth)
-            setLogs(initialLogs)
-            setTelemetry(createInitialTelemetryState())
-            setConsentRecord(null)
-            setDraftPreset(STANDARD_SESSION_PRESET)
-            setActiveSessionPreset(STANDARD_SESSION_PRESET)
-            setConsentError('')
-            setIsAuthBootstrapping(false)
-          }
-
-          setIsAuthBusy(false)
+          applyAuthStateChange(event, nextSession)
         })
 
         authSubscription = listenerData.subscription
@@ -246,30 +275,7 @@ function App() {
       setIsAuthBootstrapping(Boolean(data.session))
 
       const { data: listenerData } = supabase.auth.onAuthStateChange((event, nextSession) => {
-        sessionRef.current = nextSession
-        setSession(nextSession)
-
-        if (nextSession) {
-          if (event === 'SIGNED_IN') {
-            setCurrentView('dashboard')
-          }
-
-          setAuthError('')
-          setAuthMessage('')
-          setIsAuthBootstrapping(true)
-        } else {
-          setCurrentView('login')
-          setHealth(initialHealth)
-          setLogs(initialLogs)
-          setTelemetry(createInitialTelemetryState())
-          setConsentRecord(null)
-          setDraftPreset(STANDARD_SESSION_PRESET)
-          setActiveSessionPreset(STANDARD_SESSION_PRESET)
-          setConsentError('')
-          setIsAuthBootstrapping(false)
-        }
-
-        setIsAuthBusy(false)
+        applyAuthStateChange(event, nextSession)
       })
 
       authSubscription = listenerData.subscription
@@ -313,17 +319,20 @@ function App() {
         setLogs(persistedState.logs)
         setTelemetry(persistedState.telemetry)
         setConsentRecord(persistedState.consent)
+        const nextPresetMode = presetModeRef.current
+        const nextRecommendedPreset = buildRecommendedSessionPreset({
+          health: persistedState.health,
+          telemetry: persistedState.telemetry,
+          logs: persistedState.logs,
+        })
+        const resolvedView = resolveAuthenticatedView(persistedState.consent)
         setDraftPreset(
           getDraftPresetForMode(
-            presetMode,
-            buildRecommendedSessionPreset({
-              health: persistedState.health,
-              telemetry: persistedState.telemetry,
-              logs: persistedState.logs,
-            }),
+            nextPresetMode,
+            nextRecommendedPreset,
           ),
         )
-        setCurrentView(resolveAuthenticatedView(persistedState.consent))
+        setCurrentView(resolvedView)
       } catch (error) {
         if (!isMounted) {
           return
@@ -346,7 +355,7 @@ function App() {
     return () => {
       isMounted = false
     }
-  }, [presetMode, session?.user.id, session?.user.email])
+  }, [session?.user.id, session?.user.email])
 
   useEffect(() => {
     if (!usesNativeAuthRedirect()) {
@@ -399,6 +408,8 @@ function App() {
   const handleEmailAuth = useCallback(async (
     { email, password, mode }: { email: string; password: string; mode: EmailAuthMode },
   ) => {
+    let shouldKeepBootstrapping = false
+
     setAuthError('')
 
     if (!isSupabaseConfigured) {
@@ -412,12 +423,22 @@ function App() {
     try {
       const result = await submitEmailAuth({ email, password, mode })
       setAuthMessage(result.message)
+
+      if (result.hasSession) {
+        shouldKeepBootstrapping = true
+        setIsAuthBootstrapping(true)
+      }
     } catch (error) {
-      setAuthError(formatAuthError(error))
+      const message = formatAuthError(error)
+
+      setAuthError(message)
       setAuthMessage('')
     } finally {
       setIsAuthBusy(false)
-      setIsAuthBootstrapping(false)
+
+      if (!shouldKeepBootstrapping) {
+        setIsAuthBootstrapping(false)
+      }
     }
   }, [])
 
@@ -490,7 +511,9 @@ function App() {
       setConsentRecord(savedConsent)
       setCurrentView('dashboard')
     } catch (error) {
-      setConsentError(error instanceof Error ? error.message : 'Could not save your consent choices.')
+      const message = error instanceof Error ? error.message : 'Could not save your consent choices.'
+
+      setConsentError(message)
     } finally {
       setIsAuthBusy(false)
     }
