@@ -74,7 +74,7 @@ export function DashboardScreen({
       </div>
 
       <div className="content-stack space-y-4">
-        <section className="hero-surface hero-surface-dashboard animate-hero-pulse">
+        <section className="hero-surface hero-surface-dashboard dashboard-hero-shell animate-hero-pulse">
           <div className="hero-dashboard-head">
             <div>
               <p className="section-kicker">Connected Core</p>
@@ -93,14 +93,14 @@ export function DashboardScreen({
               <p className="mt-2 text-sm text-[var(--text-muted)]">Green-light window for the next block</p>
             </div>
 
-            <div className="device-hero device-hero-inline" />
+            <div className="device-hero device-hero-inline dashboard-hero-art" />
 
             <div className="hero-float-dot left-10 top-[4.5rem]" />
             <div className="hero-float-dot right-12 top-[6.4rem]" />
           </div>
         </section>
 
-        <section className="glass-sheet">
+        <section className="glass-sheet dashboard-health-sheet">
           <div className="info-row">
             <div>
               <p className="title-font text-[1.55rem] font-medium text-[var(--text-primary)]">Health Check</p>
@@ -117,6 +117,8 @@ export function DashboardScreen({
             </button>
           </div>
 
+          <div className="card-media-strip card-media-strip-health mt-4" aria-hidden />
+
           <div className="metric-chip-grid mt-4">
             <MetricChip label="Heart Rate" value={`${health.heartRate}`} unit="BPM" />
             <MetricChip label="Stamina" value={`${health.stamina}`} unit="%" />
@@ -132,7 +134,7 @@ export function DashboardScreen({
           </div>
         </section>
 
-        <section className="glass-sheet">
+        <section className="glass-sheet dashboard-next-session">
           <div className="info-row">
             <div>
               <p className="label-text">Account</p>
@@ -160,6 +162,8 @@ export function DashboardScreen({
             </div>
           </div>
 
+          <div className="card-media-strip card-media-strip-session mt-4" aria-hidden />
+
           <div className="metric-chip-grid mt-4">
             <MetricChip label="Mode" value={presetMode === 'auto_apply' ? 'Auto Apply' : 'Suggest Only'} unit="" />
             <MetricChip label="Breath" value={recommendedPreset.breathPreset.label} unit="" />
@@ -171,7 +175,7 @@ export function DashboardScreen({
           </button>
         </section>
 
-        <section className="glass-sheet space-y-4">
+        <section className="glass-sheet space-y-4 dashboard-report-sheet">
           <div className="info-row">
             <div>
               <p className="title-font text-[1.45rem] font-medium text-[var(--text-primary)]">Body Report</p>
@@ -213,22 +217,26 @@ export function DashboardScreen({
           </div>
 
           <div className="metric-grid">
-            <div className="glass-card">
+            <div className="glass-card dashboard-feature-tile">
+              <div className="tile-media tile-media-readiness" aria-hidden />
               <p className="label-text">Readiness</p>
               <p className="metric-number-soft mt-3">{health.readiness}%</p>
               <p className="mt-2 text-sm text-[var(--text-muted)]">Stable baseline for today</p>
             </div>
-            <div className="glass-card">
+            <div className="glass-card dashboard-feature-tile">
+              <div className="tile-media tile-media-breath" aria-hidden />
               <p className="label-text">Breath</p>
               <p className="metric-number-soft mt-3">{health.breathPerMinute}</p>
               <p className="mt-2 text-sm text-[var(--text-muted)]">Breaths per minute</p>
             </div>
-            <button type="button" className="glass-card text-left" onClick={onOpenStopwatch}>
+            <button type="button" className="glass-card dashboard-feature-tile text-left" onClick={onOpenStopwatch}>
+              <div className="tile-media tile-media-stopwatch" aria-hidden />
               <p className="label-text">Primary Tool</p>
               <p className="title-font mt-3 text-[1.1rem] font-medium text-[var(--text-primary)]">Combat Stopwatch</p>
               <p className="mt-2 text-sm text-[var(--text-muted)]">Interval tracking and sets</p>
             </button>
-            <button type="button" className="glass-card text-left" onClick={onOpenBiometrics}>
+            <button type="button" className="glass-card dashboard-feature-tile text-left" onClick={onOpenBiometrics}>
+              <div className="tile-media tile-media-recovery" aria-hidden />
               <p className="label-text">Recovery Tool</p>
               <p className="title-font mt-3 text-[1.1rem] font-medium text-[var(--text-primary)]">Biometrics</p>
               <p className="mt-2 text-sm text-[var(--text-muted)]">Body report and recovery score</p>
@@ -275,7 +283,7 @@ export function DashboardScreen({
               </div>
             ) : (
               logs.map((log) => (
-                <div key={log.id} className="glass-card">
+                <div key={log.id} className="glass-card session-log-card">
                   <div className="info-row">
                     <div>
                       <p className="title-font text-[1.05rem] font-medium text-[var(--text-primary)]">{log.title}</p>
@@ -306,7 +314,7 @@ function InsightCard({
   actionLabel: string
 }) {
   return (
-    <div className="glass-card">
+    <div className="glass-card dashboard-insight-card">
       <div className="info-row">
         <p className="title-font text-[1.05rem] font-medium text-[var(--text-primary)]">{title}</p>
         <span className="text-xs text-[var(--accent-primary)]">{actionLabel}</span>

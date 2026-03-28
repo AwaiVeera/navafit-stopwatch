@@ -163,12 +163,13 @@ export function StopwatchScreen({
       </div>
 
       <div className="content-stack space-y-4">
-        <article className="glass-sheet">
+        <article className="glass-sheet stopwatch-primary-sheet">
           <p className="section-kicker">Precision Chronometer</p>
           <h2 className="section-title mt-2">{sessionPreset.title}</h2>
           <p className="support-copy mt-2">{sessionPreset.summary}</p>
 
-          <div className="mt-6 rounded-[2rem] border border-white/8 bg-black/10 px-5 py-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
+          <div className="stopwatch-timer-well mt-6 px-5 py-6">
+            <div className="card-media-strip card-media-strip-stopwatch" aria-hidden />
             <p className="hud-font text-[3rem] font-semibold tracking-[-0.06em] text-[var(--text-primary)] sm:text-[3.4rem]">
               {displayTime}
             </p>
@@ -187,6 +188,8 @@ export function StopwatchScreen({
               </div>
             </div>
           </div>
+
+          <div className="card-media-strip card-media-strip-stopwatch-metrics mt-4" aria-hidden />
 
           <div className="metric-chip-grid mt-4">
             <MetricChip label="Weather" value={weatherLabel} />
@@ -216,7 +219,7 @@ export function StopwatchScreen({
           </div>
         </article>
 
-        <article ref={lapsRef} className="glass-sheet min-h-28">
+        <article ref={lapsRef} className="glass-sheet stopwatch-lap-sheet min-h-28">
           <div className="info-row">
             <div>
               <p className="title-font text-[1.35rem] font-medium text-[var(--text-primary)]">Lap Memory</p>
@@ -227,12 +230,12 @@ export function StopwatchScreen({
 
           <div className="mt-4 max-h-36 space-y-2 overflow-y-auto pr-1">
             {laps.length === 0 ? (
-              <div className="glass-card-compact text-sm text-[var(--text-muted)]">No laps captured yet.</div>
+              <div className="glass-card-compact lap-memory-tile text-sm text-[var(--text-muted)]">No laps captured yet.</div>
             ) : (
               laps.map((lap, index) => (
                 <div
                   key={`${lap}-${index}`}
-                  className="glass-card-compact flex items-center justify-between text-sm"
+                  className="glass-card-compact lap-memory-tile flex items-center justify-between text-sm"
                 >
                   <span className="text-[var(--text-secondary)]">Lap {laps.length - index}</span>
                   <span className="hud-font text-[var(--text-primary)]">{formatStopwatch(lap)}</span>

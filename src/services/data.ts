@@ -18,6 +18,7 @@ import type {
 import { supabase } from './supabase'
 
 const RECENT_WORKOUT_LIMIT = 12
+const LOCAL_WORKOUT_CACHE_PREFIX = 'navafit:workout-cache:'
 
 interface WorkoutSessionRow {
   id: string
@@ -98,6 +99,86 @@ function toWorkoutLog(row: WorkoutSessionRow): WorkoutLog {
     startedAt: row.started_at,
     endedAt: row.ended_at,
     source: row.source,
+  }
+}
+
+function getLocalWorkoutCacheKey(userId: string) {
+  return `${LOCAL_WORKOUT_CACHE_PREFIX}${userId}`
+}
+
+function isWorkoutSource(value: unknown): value is WorkoutSource {
+  return value === 'app' || value === 'apple_health' || value === 'apple_watch' || value === 'garmin_connect'
+}
+
+function isWorkoutLog(value: unknown): value is WorkoutLog {
+  if (!value || typeof value !== 'object') {
+    return false
+  }
+
+  const candidate = value as Record<string, unknown>
+
+  if (
+    typeof candidate.id !== 'string' ||
+    typeof candidate.date !== 'string' ||
+    typeof candidate.title !== 'string' ||
+    typeof candidate.durationMinutes !== 'number' ||
+    !Number.isFinite(candidate.durationMinutes) ||
+    typeof candidate.note !== 'string'
+  ) {
+    return false
+  }
+
+  if (candidate.startedAt !== undefined && typeof candidate.startedAt !== 'string') {
+    return false
+  }
+
+  if (candidate.endedAt !== undefined && candidate.endedAt !== null && typeof candidate.endedAt !== 'string') {
+    return false
+  }
+
+  if (candidate.source !== undefined && !isWorkoutSource(candidate.source)) {
+    return false
+  }
+
+  return true
+}
+
+export function loadLocalWorkoutCache(userId: string): WorkoutLog[] {
+  if (typeof window === 'undefined') {
+    return []
+  }
+
+  try {
+    const raw = window.localStorage.getItem(getLocalWorkoutCacheKey(userId))
+
+    if (!raw) {
+      return []
+    }
+
+    const parsed: unknown = JSON.parse(raw)
+
+    if (!Array.isArray(parsed)) {
+      return []
+    }
+
+    return parsed.filter((entry): entry is WorkoutLog => isWorkoutLog(entry)).slice(0, RECENT_WORKOUT_LIMIT)
+  } catch {
+    return []
+  }
+}
+
+export function saveLocalWorkoutCache(userId: string, logs: WorkoutLog[]) {
+  if (typeof window === 'undefined') {
+    return
+  }
+
+  try {
+    window.localStorage.setItem(
+      getLocalWorkoutCacheKey(userId),
+      JSON.stringify(logs.slice(0, RECENT_WORKOUT_LIMIT)),
+    )
+  } catch {
+    // Ignore storage write failures (private mode / quota limits).
   }
 }
 

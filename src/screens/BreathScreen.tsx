@@ -58,36 +58,38 @@ export function BreathScreen({ health, sessionPreset, onBack }: BreathScreenProp
       </div>
 
       <div className="content-stack space-y-4">
-        <article className="glass-sheet">
+        <article className="glass-sheet breath-primary-sheet">
           <p className="section-kicker">Guided Breath</p>
           <h2 className="section-title mt-2">Ujjayi Breath Sync</h2>
           <p className="support-copy mt-2">
             This guide follows the currently active session preset so breath cadence and stopwatch timing stay aligned.
           </p>
 
-          <div className="mt-8 grid place-items-center">
-            <div className={`breath-orb ${phaseRingClass}`}>
+          <div className="card-media-strip card-media-strip-breath mt-4" aria-hidden />
+
+          <div className="mt-8 grid place-items-center breath-orb-wrap">
+            <div className={`breath-orb breath-orb-reference ${phaseRingClass}`}>
               <span className="hud-font text-sm text-[var(--text-secondary)]">{phaseLabel}</span>
             </div>
           </div>
 
           <div className="mt-6 grid grid-cols-3 gap-3 text-center">
-            <div className="glass-card-compact">
+            <div className="glass-card-compact breath-phase-tile">
               <p className="label-text">Inhale</p>
               <p className="mt-2 text-[1.05rem] text-[var(--text-primary)]">{sessionPreset.breathPreset.inhaleSeconds}s</p>
             </div>
-            <div className="glass-card-compact">
+            <div className="glass-card-compact breath-phase-tile">
               <p className="label-text">Hold</p>
               <p className="mt-2 text-[1.05rem] text-[var(--text-primary)]">{sessionPreset.breathPreset.holdSeconds}s</p>
             </div>
-            <div className="glass-card-compact">
+            <div className="glass-card-compact breath-phase-tile">
               <p className="label-text">Exhale</p>
               <p className="mt-2 text-[1.05rem] text-[var(--text-primary)]">{sessionPreset.breathPreset.exhaleSeconds}s</p>
             </div>
           </div>
         </article>
 
-        <article className="glass-sheet">
+        <article className="glass-sheet breath-marker-sheet">
           <div className="info-row">
             <div>
               <p className="title-font text-[1.35rem] font-medium text-[var(--text-primary)]">Breath Markers</p>
@@ -95,6 +97,8 @@ export function BreathScreen({ health, sessionPreset, onBack }: BreathScreenProp
             </div>
             <div className="dashboard-status-chip">{sessionPreset.breathPreset.label}</div>
           </div>
+
+          <div className="card-media-strip card-media-strip-breath-metrics mt-4" aria-hidden />
 
           <div className="metric-chip-grid mt-4">
             <MetricChip label="Heart Rate" value={`${health.heartRate} BPM`} />

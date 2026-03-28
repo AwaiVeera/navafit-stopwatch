@@ -23,8 +23,10 @@ import {
 import { resolveAuthenticatedView } from './services/app-flow'
 import {
   ensureProfile,
+  loadLocalWorkoutCache,
   loadPersistedAppState,
   recordAppUsageEvent,
+  saveLocalWorkoutCache,
   saveWorkoutSession,
   upsertUserConsent,
 } from './services/data'
@@ -310,20 +312,23 @@ function App() {
           fallbackHealth: initialHealth,
           fallbackTelemetry: createInitialTelemetryState(),
         })
+        const cachedWorkoutLogs = loadLocalWorkoutCache(session.user.id)
+        const mergedWorkoutLogs = mergeWorkoutLogs(persistedState.logs, cachedWorkoutLogs)
 
         if (!isMounted) {
           return
         }
 
         setHealth(persistedState.health)
-        setLogs(persistedState.logs)
+        setLogs(mergedWorkoutLogs)
+        saveLocalWorkoutCache(session.user.id, mergedWorkoutLogs)
         setTelemetry(persistedState.telemetry)
         setConsentRecord(persistedState.consent)
         const nextPresetMode = presetModeRef.current
         const nextRecommendedPreset = buildRecommendedSessionPreset({
           health: persistedState.health,
           telemetry: persistedState.telemetry,
-          logs: persistedState.logs,
+          logs: mergedWorkoutLogs,
         })
         const resolvedView = resolveAuthenticatedView(persistedState.consent)
         setDraftPreset(
@@ -451,6 +456,7 @@ function App() {
     }
 
     const providerLabel = getProviderLabel(provider)
+
     pendingProviderRef.current = provider
     setIsAuthBusy(true)
     setAuthMessage(`Opening ${providerLabel} sign-in...`)
@@ -542,7 +548,11 @@ function App() {
       setHealth(synced.health)
       setTelemetry(synced.telemetry)
       if (synced.importedWorkouts.length > 0) {
-        setLogs((previous) => mergeWorkoutLogs(previous, synced.importedWorkouts))
+        setLogs((previous) => {
+          const mergedLogs = mergeWorkoutLogs(previous, synced.importedWorkouts)
+          saveLocalWorkoutCache(session.user.id, mergedLogs)
+          return mergedLogs
+        })
       }
     } finally {
       setIsTelemetrySyncing(false)
@@ -626,7 +636,11 @@ function App() {
     if (session?.user.id && isSupabaseConfigured) {
       try {
         const savedWorkout = await saveWorkoutSession(session.user.id, sessionPayload)
-        setLogs((previous) => mergeWorkoutLogs(previous, [savedWorkout]))
+        setLogs((previous) => {
+          const mergedLogs = mergeWorkoutLogs(previous, [savedWorkout])
+          saveLocalWorkoutCache(session.user.id, mergedLogs)
+          return mergedLogs
+        })
         return
       } catch {
         setTelemetry((previous) => ({
@@ -636,7 +650,17 @@ function App() {
       }
     }
 
-    setLogs((previous) => mergeWorkoutLogs(previous, [toLocalWorkoutLog(sessionPayload)]))
+    const localWorkout = toLocalWorkoutLog(sessionPayload)
+    if (session?.user.id) {
+      setLogs((previous) => {
+        const mergedLogs = mergeWorkoutLogs(previous, [localWorkout])
+        saveLocalWorkoutCache(session.user.id, mergedLogs)
+        return mergedLogs
+      })
+      return
+    }
+
+    setLogs((previous) => mergeWorkoutLogs(previous, [localWorkout]))
   }, [session?.user.id])
 
   return (
@@ -789,12 +813,40 @@ function TabButton({
   icon: ReactNode
   onClick: () => void
 }) {
+  const [isTapAnimating, setIsTapAnimating] = useState(false)
+  const tapTimerRef = useRef<number | null>(null)
+
+  useEffect(() => {
+    return () => {
+      if (tapTimerRef.current !== null) {
+        window.clearTimeout(tapTimerRef.current)
+      }
+    }
+  }, [])
+
+  const handlePress = () => {
+    if (tapTimerRef.current !== null) {
+      window.clearTimeout(tapTimerRef.current)
+    }
+
+    setIsTapAnimating(false)
+    window.requestAnimationFrame(() => {
+      setIsTapAnimating(true)
+    })
+
+    tapTimerRef.current = window.setTimeout(() => {
+      setIsTapAnimating(false)
+    }, 220)
+
+    onClick()
+  }
+
   return (
     <button
       type="button"
-      onClick={onClick}
+      onClick={handlePress}
       aria-label={label}
-      className={`tab-btn ${active ? 'tab-btn-active' : ''}`}
+      className={`tab-btn ${active ? 'tab-btn-active' : ''} ${isTapAnimating ? 'tab-btn-tap' : ''}`}
     >
       <span className="flex flex-col items-center justify-center">
         {icon}
