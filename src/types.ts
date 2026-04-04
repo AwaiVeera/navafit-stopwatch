@@ -1,4 +1,4 @@
-export type ViewId = 'login' | 'consent' | 'dashboard' | 'pre-session' | 'stopwatch' | 'breath' | 'biometrics'
+export type ViewId = 'login' | 'onboarding' | 'consent' | 'dashboard' | 'pre-session' | 'stopwatch' | 'breath' | 'biometrics'
 export type EmailAuthMode = 'sign-in' | 'sign-up'
 export type SocialAuthProvider = 'apple' | 'google'
 export type WorkoutSource = 'app' | 'apple_health' | 'apple_watch' | 'garmin_connect'
@@ -118,12 +118,20 @@ export interface ConsentSubmission {
   acceptsUsageAnalytics: boolean
 }
 
+export interface OnboardingProfile {
+  ageYears: number
+  heightCm: number
+  weightKg: number
+  trainingDaysPerWeek: number
+}
+
 export interface PersistedAppState {
   logs: WorkoutLog[]
   health: HealthMetrics
   telemetry: TelemetryState
   deviceConnections: DeviceConnectionRecord[]
   consent: UserConsentRecord | null
+  onboardingCompleted: boolean
 }
 
 export interface TelemetrySyncContext {

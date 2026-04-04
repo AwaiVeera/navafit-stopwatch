@@ -8,6 +8,7 @@ import type {
   DeviceConnectionStatus,
   DeviceProvider,
   HealthMetrics,
+  OnboardingProfile,
   PersistedAppState,
   SessionSavePayload,
   TelemetryState,
@@ -19,6 +20,7 @@ import { supabase } from './supabase'
 
 const RECENT_WORKOUT_LIMIT = 12
 const LOCAL_WORKOUT_CACHE_PREFIX = 'navafit:workout-cache:'
+const LOCAL_ONBOARDING_PROFILE_PREFIX = 'navafit:onboarding-profile:'
 
 interface WorkoutSessionRow {
   id: string
@@ -60,6 +62,10 @@ interface UserConsentRow {
   accepted_terms_at: string
   accepted_health_sync_at: string | null
   accepted_usage_analytics_at: string | null
+}
+
+interface ProfileRow {
+  onboarding_completed: boolean | null
 }
 
 function requireSupabase() {
@@ -177,6 +183,65 @@ export function saveLocalWorkoutCache(userId: string, logs: WorkoutLog[]) {
       getLocalWorkoutCacheKey(userId),
       JSON.stringify(logs.slice(0, RECENT_WORKOUT_LIMIT)),
     )
+  } catch {
+    // Ignore storage write failures (private mode / quota limits).
+  }
+}
+
+function getLocalOnboardingProfileKey(userId: string) {
+  return `${LOCAL_ONBOARDING_PROFILE_PREFIX}${userId}`
+}
+
+function isOnboardingProfile(value: unknown): value is OnboardingProfile {
+  if (!value || typeof value !== 'object') {
+    return false
+  }
+
+  const candidate = value as Record<string, unknown>
+
+  return (
+    typeof candidate.ageYears === 'number'
+    && Number.isFinite(candidate.ageYears)
+    && typeof candidate.heightCm === 'number'
+    && Number.isFinite(candidate.heightCm)
+    && typeof candidate.weightKg === 'number'
+    && Number.isFinite(candidate.weightKg)
+    && typeof candidate.trainingDaysPerWeek === 'number'
+    && Number.isFinite(candidate.trainingDaysPerWeek)
+  )
+}
+
+export function loadLocalOnboardingProfile(userId: string): OnboardingProfile | null {
+  if (typeof window === 'undefined') {
+    return null
+  }
+
+  try {
+    const raw = window.localStorage.getItem(getLocalOnboardingProfileKey(userId))
+
+    if (!raw) {
+      return null
+    }
+
+    const parsed: unknown = JSON.parse(raw)
+
+    if (!isOnboardingProfile(parsed)) {
+      return null
+    }
+
+    return parsed
+  } catch {
+    return null
+  }
+}
+
+function saveLocalOnboardingProfile(userId: string, profile: OnboardingProfile) {
+  if (typeof window === 'undefined') {
+    return
+  }
+
+  try {
+    window.localStorage.setItem(getLocalOnboardingProfileKey(userId), JSON.stringify(profile))
   } catch {
     // Ignore storage write failures (private mode / quota limits).
   }
@@ -340,6 +405,39 @@ export async function ensureProfile({
   }
 }
 
+export async function saveOnboardingProfile({
+  userId,
+  profile,
+}: {
+  userId: string
+  profile: OnboardingProfile
+}) {
+  saveLocalOnboardingProfile(userId, profile)
+
+  if (!supabase) {
+    return {
+      savedToCloud: false,
+    }
+  }
+
+  const { error } = await supabase
+    .from('profiles')
+    .update({
+      onboarding_completed: true,
+    })
+    .eq('id', userId)
+
+  if (error) {
+    return {
+      savedToCloud: false,
+    }
+  }
+
+  return {
+    savedToCloud: true,
+  }
+}
+
 export async function loadPersistedAppState({
   userId,
   fallbackHealth,
@@ -356,6 +454,7 @@ export async function loadPersistedAppState({
     telemetryResponse,
     consentResponse,
     deviceConnectionsResponse,
+    profileResponse,
   ] = await Promise.all([
     client
       .from('workout_sessions')
@@ -384,6 +483,11 @@ export async function loadPersistedAppState({
       .select('id, provider, connection_status, provider_user_id, scopes, last_synced_at')
       .eq('user_id', userId)
       .order('updated_at', { ascending: false }),
+    client
+      .from('profiles')
+      .select('onboarding_completed')
+      .eq('id', userId)
+      .maybeSingle(),
   ])
 
   if (workoutResponse.error) {
@@ -400,6 +504,10 @@ export async function loadPersistedAppState({
 
   if (deviceConnectionsResponse.error) {
     throw deviceConnectionsResponse.error
+  }
+
+  if (profileResponse.error) {
+    throw profileResponse.error
   }
 
   const latestSnapshot = telemetryResponse.data as TelemetrySnapshotRow | null
@@ -438,6 +546,7 @@ export async function loadPersistedAppState({
     },
     consent: consentResponse.data ? toConsentRecord(consentResponse.data as UserConsentRow) : null,
     deviceConnections,
+    onboardingCompleted: Boolean((profileResponse.data as ProfileRow | null)?.onboarding_completed),
   }
 }
 

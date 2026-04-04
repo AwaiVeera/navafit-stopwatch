@@ -4,8 +4,12 @@ import { PRIVACY_POLICY_VERSION, TERMS_OF_SERVICE_VERSION } from '../legal'
 import { resolveAuthenticatedView } from './app-flow'
 
 describe('authenticated app flow', () => {
+  it('routes signed-in users to onboarding until profile setup is complete', () => {
+    expect(resolveAuthenticatedView(null, false)).toBe('onboarding')
+  })
+
   it('routes signed-in users to the consent gate until current legal versions are accepted', () => {
-    expect(resolveAuthenticatedView(null)).toBe('consent')
+    expect(resolveAuthenticatedView(null, true)).toBe('consent')
 
     expect(
       resolveAuthenticatedView({
@@ -16,7 +20,7 @@ describe('authenticated app flow', () => {
         acceptedTermsAt: '2026-03-19T00:00:00.000Z',
         acceptedHealthSyncAt: null,
         acceptedUsageAnalyticsAt: null,
-      }),
+      }, true),
     ).toBe('consent')
   })
 
@@ -30,7 +34,7 @@ describe('authenticated app flow', () => {
         acceptedTermsAt: '2026-03-19T00:00:00.000Z',
         acceptedHealthSyncAt: '2026-03-19T00:00:00.000Z',
         acceptedUsageAnalyticsAt: '2026-03-19T00:00:00.000Z',
-      }),
+      }, true),
     ).toBe('dashboard')
   })
 })

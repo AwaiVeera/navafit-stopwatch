@@ -57,7 +57,7 @@ function buildRecoveryInsight(health: HealthMetrics): InsightItem {
     domain: 'recovery',
     title: needsRecoveryBias ? 'Recovery bias recommended' : 'Recovery markers look steady',
     summary: needsRecoveryBias
-      ? 'Favor Ujjayi work, hydration, and a shorter next block before increasing intensity again.'
+      ? 'Favor BreathWork, hydration, and a shorter next block before increasing intensity again.'
       : 'Current recovery markers can support another moderate session if you maintain sleep and breathwork.',
     emphasis: `Stress ${health.stressLevel}% · Breath ${health.breathPerMinute}/min`,
     actionLabel: needsRecoveryBias ? 'Prioritize breath and electrolytes' : 'Maintain 12-18 min evening recovery',

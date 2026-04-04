@@ -1,5 +1,6 @@
 import type {
   HealthMetrics,
+  OnboardingProfile,
   PresetMode,
   SessionPreset,
   TelemetryState,
@@ -32,20 +33,24 @@ interface PresetEngineInput {
   health: HealthMetrics
   telemetry: TelemetryState
   logs: WorkoutLog[]
+  onboardingProfile?: OnboardingProfile | null
 }
 
 export function buildRecommendedSessionPreset({
   health,
   telemetry,
   logs,
+  onboardingProfile,
 }: PresetEngineInput): SessionPreset {
   const recentMinutes = logs.slice(0, 4).reduce((total, item) => total + item.durationMinutes, 0)
   const lowRecovery = health.readiness < 60 || health.stressLevel > 58 || health.breathPerMinute > 18
   const highReadiness =
     health.readiness >= 80 && health.endurance >= 72 && health.stamina >= 72 && health.stressLevel < 42
 
+  let basePreset: SessionPreset
+
   if (lowRecovery) {
-    return {
+    basePreset = {
       id: 'recovery-reset',
       title: 'Recovery reset block',
       summary: 'Shorten the next session and bias the breath toward a longer exhale.',
@@ -64,10 +69,8 @@ export function buildRecommendedSessionPreset({
         label: '4-2-6 recovery cadence',
       },
     }
-  }
-
-  if (highReadiness && recentMinutes < 150) {
-    return {
+  } else if (highReadiness && recentMinutes < 150) {
+    basePreset = {
       id: 'build-window',
       title: 'Build window session',
       summary: 'Extend the next block slightly while holding a controlled exhale.',
@@ -86,27 +89,72 @@ export function buildRecommendedSessionPreset({
         label: '4-1-6 build cadence',
       },
     }
+  } else {
+    basePreset = {
+      id: 'controlled-base',
+      title: 'Controlled base session',
+      summary: 'Keep the session productive, but stay just under the full default load.',
+      targetMinutes: 40,
+      recoveryBias: 'maintain',
+      sourceLabel: telemetry.healthSourceLabel,
+      rationale: [
+        `Recovery and strain look balanced enough for steady work: readiness ${health.readiness}% and stress ${health.stressLevel}%.`,
+        'The session stays below the full 45-minute default while data quality continues to improve.',
+      ],
+      breathPreset: {
+        inhaleSeconds: 4,
+        holdSeconds: 2,
+        exhaleSeconds: 5,
+        cycleSeconds: 11,
+        label: '4-2-5 controlled cadence',
+      },
+    }
+  }
+
+  return applyOnboardingAdjustments(basePreset, onboardingProfile)
+}
+
+function applyOnboardingAdjustments(basePreset: SessionPreset, profile?: OnboardingProfile | null) {
+  if (!profile) {
+    return basePreset
+  }
+
+  let minuteOffset = 0
+
+  if (profile.trainingDaysPerWeek <= 2) {
+    minuteOffset -= 4
+  } else if (profile.trainingDaysPerWeek >= 5) {
+    minuteOffset += 4
+  }
+
+  if (profile.ageYears >= 50) {
+    minuteOffset -= 3
+  } else if (profile.ageYears <= 25) {
+    minuteOffset += 2
+  }
+
+  if (minuteOffset === 0) {
+    return {
+      ...basePreset,
+      rationale: [
+        ...basePreset.rationale,
+        `Onboarding profile loaded: age ${profile.ageYears}, ${profile.trainingDaysPerWeek} training days/week.`,
+      ],
+    }
   }
 
   return {
-    id: 'controlled-base',
-    title: 'Controlled base session',
-    summary: 'Keep the session productive, but stay just under the full default load.',
-    targetMinutes: 40,
-    recoveryBias: 'maintain',
-    sourceLabel: telemetry.healthSourceLabel,
+    ...basePreset,
+    targetMinutes: clampMinutes(basePreset.targetMinutes + minuteOffset),
     rationale: [
-      `Recovery and strain look balanced enough for steady work: readiness ${health.readiness}% and stress ${health.stressLevel}%.`,
-      'The session stays below the full 45-minute default while data quality continues to improve.',
+      ...basePreset.rationale,
+      `Onboarding profile adjusted timer: age ${profile.ageYears}, ${profile.trainingDaysPerWeek} training days/week.`,
     ],
-    breathPreset: {
-      inhaleSeconds: 4,
-      holdSeconds: 2,
-      exhaleSeconds: 5,
-      cycleSeconds: 11,
-      label: '4-2-5 controlled cadence',
-    },
   }
+}
+
+function clampMinutes(value: number) {
+  return Math.max(24, Math.min(60, Math.round(value)))
 }
 
 export function readPresetModePreference(): PresetMode {

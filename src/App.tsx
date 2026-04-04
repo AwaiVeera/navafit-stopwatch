@@ -10,6 +10,7 @@ import { ConsentScreen } from './screens/ConsentScreen'
 import { DashboardScreen } from './screens/DashboardScreen'
 import { BiometricsScreen } from './screens/BiometricsScreen'
 import { LoginScreen } from './screens/LoginScreen'
+import { OnboardingScreen } from './screens/OnboardingScreen'
 import { PreSessionScreen } from './screens/PreSessionScreen'
 import { StopwatchScreen } from './screens/StopwatchScreen'
 import {
@@ -23,9 +24,11 @@ import {
 import { resolveAuthenticatedView } from './services/app-flow'
 import {
   ensureProfile,
+  loadLocalOnboardingProfile,
   loadLocalWorkoutCache,
   loadPersistedAppState,
   recordAppUsageEvent,
+  saveOnboardingProfile,
   saveLocalWorkoutCache,
   saveWorkoutSession,
   upsertUserConsent,
@@ -44,6 +47,7 @@ import { hasAcceptedCurrentLegalVersions } from './legal'
 import type {
   EmailAuthMode,
   HealthMetrics,
+  OnboardingProfile,
   PresetMode,
   SessionPreset,
   SessionSavePayload,
@@ -103,6 +107,9 @@ function App() {
   const [authMessage, setAuthMessage] = useState(getSupabaseSetupMessage())
   const [authError, setAuthError] = useState('')
   const [consentError, setConsentError] = useState('')
+  const [onboardingError, setOnboardingError] = useState('')
+  const [onboardingProfile, setOnboardingProfile] = useState<OnboardingProfile | null>(null)
+  const [isOnboardingComplete, setIsOnboardingComplete] = useState(false)
   const [health, setHealth] = useState<HealthMetrics>(initialHealth)
   const [logs, setLogs] = useState<WorkoutLog[]>(initialLogs)
   const [telemetry, setTelemetry] = useState(() => createInitialTelemetryState())
@@ -125,8 +132,8 @@ function App() {
     [health, logs, telemetry],
   )
   const recommendedPreset = useMemo(
-    () => buildRecommendedSessionPreset({ health, telemetry, logs }),
-    [health, logs, telemetry],
+    () => buildRecommendedSessionPreset({ health, telemetry, logs, onboardingProfile }),
+    [health, logs, onboardingProfile, telemetry],
   )
   const isAuthenticated = session !== null
   const accountEmail = session?.user.email ?? 'Signed-in user'
@@ -135,7 +142,7 @@ function App() {
   const navActiveView =
     currentView === 'pre-session'
       ? 'stopwatch'
-      : currentView === 'login' || currentView === 'consent'
+      : currentView === 'login' || currentView === 'onboarding' || currentView === 'consent'
         ? 'dashboard'
         : currentView
 
@@ -218,9 +225,12 @@ function App() {
         setLogs(initialLogs)
         setTelemetry(createInitialTelemetryState())
         setConsentRecord(null)
+        setOnboardingProfile(null)
+        setIsOnboardingComplete(false)
         setDraftPreset(STANDARD_SESSION_PRESET)
         setActiveSessionPreset(STANDARD_SESSION_PRESET)
         setConsentError('')
+        setOnboardingError('')
         setIsAuthBootstrapping(false)
       }
 
@@ -312,8 +322,10 @@ function App() {
           fallbackHealth: initialHealth,
           fallbackTelemetry: createInitialTelemetryState(),
         })
+        const storedOnboardingProfile = loadLocalOnboardingProfile(session.user.id)
         const cachedWorkoutLogs = loadLocalWorkoutCache(session.user.id)
         const mergedWorkoutLogs = mergeWorkoutLogs(persistedState.logs, cachedWorkoutLogs)
+        const onboardingCompleted = persistedState.onboardingCompleted || Boolean(storedOnboardingProfile)
 
         if (!isMounted) {
           return
@@ -324,13 +336,17 @@ function App() {
         saveLocalWorkoutCache(session.user.id, mergedWorkoutLogs)
         setTelemetry(persistedState.telemetry)
         setConsentRecord(persistedState.consent)
+        setOnboardingProfile(storedOnboardingProfile)
+        setIsOnboardingComplete(onboardingCompleted)
+        setOnboardingError('')
         const nextPresetMode = presetModeRef.current
         const nextRecommendedPreset = buildRecommendedSessionPreset({
           health: persistedState.health,
           telemetry: persistedState.telemetry,
           logs: mergedWorkoutLogs,
+          onboardingProfile: storedOnboardingProfile,
         })
-        const resolvedView = resolveAuthenticatedView(persistedState.consent)
+        const resolvedView = resolveAuthenticatedView(persistedState.consent, onboardingCompleted)
         setDraftPreset(
           getDraftPresetForMode(
             nextPresetMode,
@@ -504,6 +520,37 @@ function App() {
     }
   }, [])
 
+  const handleOnboardingSubmit = useCallback(async (profile: OnboardingProfile) => {
+    if (!session?.user.id) {
+      return
+    }
+
+    setIsAuthBusy(true)
+    setOnboardingError('')
+
+    try {
+      const result = await saveOnboardingProfile({
+        userId: session.user.id,
+        profile,
+      })
+
+      setOnboardingProfile(profile)
+      setIsOnboardingComplete(true)
+      setCurrentView(resolveAuthenticatedView(consentRecord, true))
+
+      if (!result.savedToCloud) {
+        setAuthMessage('Profile saved on this device. Cloud sync will retry when network is stable.')
+      } else {
+        setAuthMessage('')
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Could not save your onboarding details.'
+      setOnboardingError(message)
+    } finally {
+      setIsAuthBusy(false)
+    }
+  }, [consentRecord, session?.user.id])
+
   const handleConsentSubmit = useCallback(async (submission: { acceptsHealthSync: boolean; acceptsUsageAnalytics: boolean }) => {
     if (!session?.user.id) {
       return
@@ -515,7 +562,7 @@ function App() {
     try {
       const savedConsent = await upsertUserConsent(session.user.id, submission)
       setConsentRecord(savedConsent)
-      setCurrentView('dashboard')
+      setCurrentView(resolveAuthenticatedView(savedConsent, isOnboardingComplete))
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Could not save your consent choices.'
 
@@ -523,7 +570,7 @@ function App() {
     } finally {
       setIsAuthBusy(false)
     }
-  }, [session?.user.id])
+  }, [isOnboardingComplete, session?.user.id])
 
   const handleTelemetrySync = useCallback(async () => {
     if (isTelemetrySyncing || !session?.user.id) {
@@ -695,6 +742,17 @@ function App() {
               </div>
             </section>
           </div>
+        ) : currentView === 'onboarding' ? (
+          <div className="app-screen screen-fade">
+            <OnboardingScreen
+              accountEmail={accountEmail}
+              initialProfile={onboardingProfile}
+              isSaving={isAuthBusy}
+              error={onboardingError}
+              onSubmit={handleOnboardingSubmit}
+              onSignOut={handleSignOut}
+            />
+          </div>
         ) : currentView === 'consent' ? (
           <div className="app-screen screen-fade">
             <ConsentScreen
@@ -783,7 +841,7 @@ function App() {
                 onClick={handleOpenPreSession}
               />
               <TabButton
-                label="Breath"
+                label="BreathWork"
                 active={navActiveView === 'breath'}
                 icon={<BreathIcon />}
                 onClick={() => setCurrentView('breath')}

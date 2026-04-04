@@ -10,26 +10,33 @@ interface BreathScreenProps {
 
 export function BreathScreen({ health, sessionPreset, onBack }: BreathScreenProps) {
   const [breathSecond, setBreathSecond] = useState(0)
+  const [breathMode, setBreathMode] = useState<'guided' | 'manual'>('guided')
+  const [manualPhase, setManualPhase] = useState<'Inhale' | 'Hold' | 'Exhale'>('Inhale')
   const breathCycleSeconds = sessionPreset.breathPreset.cycleSeconds
 
   useEffect(() => {
+    if (breathMode !== 'guided') {
+      return undefined
+    }
+
     const breathId = window.setInterval(() => {
       setBreathSecond((previous) => (previous + 1) % breathCycleSeconds)
     }, 1000)
 
     return () => window.clearInterval(breathId)
-  }, [breathCycleSeconds])
+  }, [breathCycleSeconds, breathMode])
 
   const inhaleBoundary = sessionPreset.breathPreset.inhaleSeconds
   const holdBoundary = inhaleBoundary + sessionPreset.breathPreset.holdSeconds
 
-  const phaseLabel =
+  const guidedPhaseLabel =
     breathSecond < inhaleBoundary ? 'Inhale' : breathSecond < holdBoundary ? 'Hold' : 'Exhale'
+  const phaseLabel = breathMode === 'manual' ? manualPhase : guidedPhaseLabel
 
   const phaseRingClass =
-    breathSecond < inhaleBoundary
+    phaseLabel === 'Inhale'
       ? 'breath-inhale'
-      : breathSecond < holdBoundary
+      : phaseLabel === 'Hold'
         ? 'breath-hold'
         : 'breath-exhale'
 
@@ -51,7 +58,10 @@ export function BreathScreen({ health, sessionPreset, onBack }: BreathScreenProp
           type="button"
           className="round-icon-btn"
           aria-label="Restart breath cycle"
-          onClick={() => setBreathSecond(0)}
+          onClick={() => {
+            setBreathSecond(0)
+            setManualPhase('Inhale')
+          }}
         >
           <BreathIcon />
         </button>
@@ -59,11 +69,28 @@ export function BreathScreen({ health, sessionPreset, onBack }: BreathScreenProp
 
       <div className="content-stack space-y-4">
         <article className="glass-sheet breath-primary-sheet">
-          <p className="section-kicker">Guided Breath</p>
-          <h2 className="section-title mt-2">Ujjayi Breath Sync</h2>
+          <p className="section-kicker">Breath Cadence</p>
+          <h2 className="section-title mt-2">BreathWork</h2>
           <p className="support-copy mt-2">
-            This guide follows the currently active session preset so breath cadence and stopwatch timing stay aligned.
+            Guided mode follows your active session preset, while manual mode gives direct inhale/exhale control.
           </p>
+
+          <div className="button-row mt-4">
+            <button
+              type="button"
+              className={`secondary-btn ${breathMode === 'guided' ? 'primary-btn-strong' : ''}`}
+              onClick={() => setBreathMode('guided')}
+            >
+              Guided
+            </button>
+            <button
+              type="button"
+              className={`secondary-btn ${breathMode === 'manual' ? 'primary-btn-strong' : ''}`}
+              onClick={() => setBreathMode('manual')}
+            >
+              Manual
+            </button>
+          </div>
 
           <div className="card-media-strip card-media-strip-breath mt-4" aria-hidden />
 
@@ -87,6 +114,32 @@ export function BreathScreen({ health, sessionPreset, onBack }: BreathScreenProp
               <p className="mt-2 text-[1.05rem] text-[var(--text-primary)]">{sessionPreset.breathPreset.exhaleSeconds}s</p>
             </div>
           </div>
+
+          {breathMode === 'manual' ? (
+            <div className="button-row mt-5">
+              <button
+                type="button"
+                className={`secondary-btn ${phaseLabel === 'Inhale' ? 'primary-btn-strong' : ''}`}
+                onClick={() => setManualPhase('Inhale')}
+              >
+                Inhale
+              </button>
+              <button
+                type="button"
+                className={`secondary-btn ${phaseLabel === 'Hold' ? 'primary-btn-strong' : ''}`}
+                onClick={() => setManualPhase('Hold')}
+              >
+                Hold
+              </button>
+              <button
+                type="button"
+                className={`secondary-btn ${phaseLabel === 'Exhale' ? 'primary-btn-strong' : ''}`}
+                onClick={() => setManualPhase('Exhale')}
+              >
+                Exhale
+              </button>
+            </div>
+          ) : null}
         </article>
 
         <article className="glass-sheet breath-marker-sheet">
