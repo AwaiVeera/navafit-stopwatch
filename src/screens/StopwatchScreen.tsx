@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
+import { hapticLap, hapticStartPause } from '../services/haptics'
+import { computeLapSplits, formatStopwatch } from '../services/stopwatch'
 import type { SessionPreset, SessionSavePayload, WeatherSnapshot } from '../types'
 
 interface StopwatchScreenProps {
@@ -89,9 +91,10 @@ export function StopwatchScreen({
         presetTargetMinutes: sessionPreset.targetMinutes,
         breathPreset: sessionPreset.breathPreset.label,
         lapCount: laps.length,
+        lapSplitsMs: computeLapSplits(laps).map((s) => s.splitMs),
       },
     })
-  }, [laps.length, onSaveSession, sessionPreset])
+  }, [laps, onSaveSession, sessionPreset])
 
   useEffect(() => {
     return () => {
@@ -100,6 +103,7 @@ export function StopwatchScreen({
   }, [persistSession])
 
   const displayTime = useMemo(() => formatStopwatch(elapsedMs), [elapsedMs])
+  const lapSplits = useMemo(() => computeLapSplits(laps), [laps])
   const sessionProgress = Math.min(elapsedMs / (sessionPreset.targetMinutes * 60 * 1000), 1)
   const weatherLabel =
     weatherSnapshot.temperatureC === null
@@ -123,6 +127,8 @@ export function StopwatchScreen({
   }
 
   const handleStartPause = () => {
+    hapticStartPause()
+
     if (isRunning) {
       if (runningStartRef.current !== null) {
         carriedElapsedRef.current += performance.now() - runningStartRef.current
@@ -208,7 +214,10 @@ export function StopwatchScreen({
             <button
               type="button"
               className="secondary-btn"
-              onClick={() => setLaps((previous) => [elapsedMs, ...previous])}
+              onClick={() => {
+                hapticLap()
+                setLaps((previous) => [elapsedMs, ...previous])
+              }}
               disabled={!isRunning}
             >
               Lap
@@ -229,16 +238,17 @@ export function StopwatchScreen({
           </div>
 
           <div className="mt-4 max-h-36 space-y-2 overflow-y-auto pr-1">
-            {laps.length === 0 ? (
+            {lapSplits.length === 0 ? (
               <div className="glass-card-compact lap-memory-tile text-sm text-[var(--text-muted)]">No laps captured yet.</div>
             ) : (
-              laps.map((lap, index) => (
+              lapSplits.map((split) => (
                 <div
-                  key={`${lap}-${index}`}
+                  key={`${split.cumulativeMs}-${split.lapNumber}`}
                   className="glass-card-compact lap-memory-tile flex items-center justify-between text-sm"
                 >
-                  <span className="text-[var(--text-secondary)]">Lap {laps.length - index}</span>
-                  <span className="hud-font text-[var(--text-primary)]">{formatStopwatch(lap)}</span>
+                  <span className="text-[var(--text-secondary)]">Lap {split.lapNumber}</span>
+                  <span className="hud-font text-[var(--accent-deep)]">{formatStopwatch(split.splitMs)}</span>
+                  <span className="hud-font text-[var(--text-muted)] text-xs">{formatStopwatch(split.cumulativeMs)}</span>
                 </div>
               ))
             )}
@@ -286,15 +296,3 @@ function GridIcon() {
   )
 }
 
-function formatStopwatch(milliseconds: number) {
-  const totalCentiseconds = Math.floor(milliseconds / 10)
-  const minutes = Math.floor(totalCentiseconds / 6000)
-  const seconds = Math.floor((totalCentiseconds % 6000) / 100)
-  const centiseconds = totalCentiseconds % 100
-
-  return `${pad2(minutes)}:${pad2(seconds)}.${pad2(centiseconds)}`
-}
-
-function pad2(value: number) {
-  return value.toString().padStart(2, '0')
-}

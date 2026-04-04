@@ -1,0 +1,28 @@
+---
+description: Production invariants — what must never degrade
+globs: src/**/*
+alwaysApply: true
+---
+
+# Production Invariants
+
+## Core features (never remove or weaken)
+
+- Stopwatch RAF loop, start/pause carry, lap capture, and session persist in StopwatchScreen.
+- Preset engine (buildRecommendedSessionPreset): health, telemetry, logs, and onboarding inputs must all remain wired. Do not remove any input branch.
+- BreathWork guided cadence from breathPreset and manual inhale/hold/exhale mode.
+- Onboarding profile collection and local persistence.
+
+## Visual system (preserve or media-query gate)
+
+- app-backdrop and app-frost pulse animations must remain enabled by default.
+- Glass surfaces, gradients, timer-ring spin, breath-orb transitions stay as-is.
+- To disable any animation for performance or accessibility: use @media (prefers-reduced-motion: reduce) or @media (prefers-reduced-transparency: reduce). Never remove the default-on animation.
+- Haptics fire only on native platforms and respect prefers-reduced-motion.
+
+## Gate before merge
+
+- Run `npm run verify:production` (lint + test + build) before any merge claim.
+- After web source changes: `npm run cap:sync`.
+- For iOS claims: Xcode archive or simulator build evidence.
+- Do not commit service_role keys or .env files with secrets.
