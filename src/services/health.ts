@@ -21,9 +21,7 @@ const HEALTH_SAMPLE_TYPES: HealthDataType[] = [
   'sleep',
 ]
 
-// The plugin README documents a dedicated workouts permission, but the current typings do not expose it yet.
-const WORKOUT_PERMISSION = 'workouts' as unknown as HealthDataType
-const HEALTH_READ_TYPES: HealthDataType[] = [...HEALTH_SAMPLE_TYPES, WORKOUT_PERMISSION]
+const HEALTH_READ_TYPES: HealthDataType[] = [...HEALTH_SAMPLE_TYPES, 'workouts' as HealthDataType]
 
 interface DerivedHealthInput {
   fallbackHealth: HealthMetrics
@@ -130,21 +128,9 @@ export async function syncNativeHealth(fallbackHealth: HealthMetrics): Promise<N
     throw new Error(availability.reason || 'Apple Health is unavailable on this device.')
   }
 
-  const authorization = await Health.checkAuthorization({
+  await Health.requestAuthorization({
     read: HEALTH_READ_TYPES,
   })
-  const missingReads = HEALTH_READ_TYPES.filter((scope) => !authorization.readAuthorized.includes(scope))
-
-  if (missingReads.length > 0) {
-    const afterRequest = await Health.requestAuthorization({
-      read: HEALTH_READ_TYPES,
-    })
-    const stillMissing = HEALTH_READ_TYPES.filter((scope) => !afterRequest.readAuthorized.includes(scope))
-
-    if (stillMissing.length > 0) {
-      throw new Error('Apple Health permission was not granted for all required data types.')
-    }
-  }
 
   const now = new Date()
   const last24Hours = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString()

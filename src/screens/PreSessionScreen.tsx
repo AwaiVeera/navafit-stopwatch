@@ -75,9 +75,9 @@ export function PreSessionScreen({
           </div>
 
           <div className="metric-chip-grid mt-4">
-            <PresetMetric label="Breath" value={recommendedPreset.breathPreset.label} />
+            <PresetMetric label="Breath" value={recommendedPreset.breathPreset.label} compact />
             <PresetMetric label="Bias" value={recommendedPreset.recoveryBias} />
-            <PresetMetric label="Source" value={recommendedPreset.sourceLabel} />
+            <PresetMetric label="Source" value={recommendedPreset.sourceLabel} compact />
           </div>
 
           <div className="mt-4 space-y-2">
@@ -136,11 +136,11 @@ export function PreSessionScreen({
   )
 }
 
-function PresetMetric({ label, value }: { label: string; value: string }) {
+function PresetMetric({ label, value, compact }: { label: string; value: string; compact?: boolean }) {
   return (
     <div className="metric-chip">
       <p className="metric-chip-label">{label}</p>
-      <p className="metric-chip-value mt-3">{value}</p>
+      <p className={`${compact ? 'metric-chip-value-compact' : 'metric-chip-value'} mt-3`}>{value}</p>
     </div>
   )
 }
