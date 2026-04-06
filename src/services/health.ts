@@ -128,9 +128,13 @@ export async function syncNativeHealth(fallbackHealth: HealthMetrics): Promise<N
     throw new Error(availability.reason || 'Apple Health is unavailable on this device.')
   }
 
-  await Health.requestAuthorization({
-    read: HEALTH_READ_TYPES,
-  })
+  try {
+    await Health.requestAuthorization({
+      read: HEALTH_READ_TYPES,
+    })
+  } catch {
+    // iOS may throw even when some permissions are granted; continue and read what we can.
+  }
 
   const now = new Date()
   const last24Hours = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString()
@@ -138,6 +142,9 @@ export async function syncNativeHealth(fallbackHealth: HealthMetrics): Promise<N
   const last7Days = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString()
   const last30Days = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString()
   const endDate = now.toISOString()
+
+  const emptySamples = { samples: [] as HealthSample[] }
+  const emptyWorkouts = { workouts: [] as Workout[] }
 
   const [
     heartRateResult,
@@ -147,41 +154,12 @@ export async function syncNativeHealth(fallbackHealth: HealthMetrics): Promise<N
     sleepResult,
     workoutsResult,
   ] = await Promise.all([
-    Health.readSamples({
-      dataType: 'heartRate',
-      startDate: last24Hours,
-      endDate,
-      limit: 20,
-    }),
-    Health.readSamples({
-      dataType: 'restingHeartRate',
-      startDate: last7Days,
-      endDate,
-      limit: 20,
-    }),
-    Health.readSamples({
-      dataType: 'respiratoryRate',
-      startDate: last24Hours,
-      endDate,
-      limit: 20,
-    }),
-    Health.readSamples({
-      dataType: 'heartRateVariability',
-      startDate: last7Days,
-      endDate,
-      limit: 20,
-    }),
-    Health.readSamples({
-      dataType: 'sleep',
-      startDate: last36Hours,
-      endDate,
-      limit: 30,
-    }),
-    Health.queryWorkouts({
-      startDate: last30Days,
-      endDate,
-      limit: 8,
-    }),
+    Health.readSamples({ dataType: 'heartRate', startDate: last24Hours, endDate, limit: 20 }).catch(() => emptySamples),
+    Health.readSamples({ dataType: 'restingHeartRate', startDate: last7Days, endDate, limit: 20 }).catch(() => emptySamples),
+    Health.readSamples({ dataType: 'respiratoryRate', startDate: last24Hours, endDate, limit: 20 }).catch(() => emptySamples),
+    Health.readSamples({ dataType: 'heartRateVariability', startDate: last7Days, endDate, limit: 20 }).catch(() => emptySamples),
+    Health.readSamples({ dataType: 'sleep', startDate: last36Hours, endDate, limit: 30 }).catch(() => emptySamples),
+    Health.queryWorkouts({ startDate: last30Days, endDate, limit: 8 }).catch(() => emptyWorkouts),
   ])
 
   const latestHeartRate = getLatestSampleValue(heartRateResult.samples)
