@@ -57,7 +57,7 @@ export async function syncTelemetry({
   const capabilities = detectCapabilities()
   await sleep(SYNC_DELAY_MS)
   const startedAt = new Date().toISOString()
-  const weatherSnapshot = buildWeatherSnapshot(capabilities.weather)
+  const weatherSnapshot = await fetchWeatherSnapshot(capabilities.weather)
   const completedAt = new Date().toISOString()
 
   try {
@@ -176,32 +176,74 @@ function detectCapabilities(): DeviceCapabilities {
   }
 }
 
-function buildWeatherSnapshot(weatherCapability: boolean): WeatherSnapshot {
+async function fetchWeatherSnapshot(weatherCapability: boolean): Promise<WeatherSnapshot> {
   if (!weatherCapability) {
-    return {
-      condition: 'Unavailable',
-      temperatureC: null,
-      source: 'disabled',
-    }
+    return { condition: 'Unavailable', temperatureC: null, source: 'disabled' }
   }
 
+  try {
+    const position = await getDevicePosition()
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${position.lat}&longitude=${position.lon}&current=temperature_2m,weather_code`
+    const response = await fetch(url)
+
+    if (!response.ok) {
+      return buildSimulatedWeather()
+    }
+
+    const data = (await response.json()) as {
+      current?: { temperature_2m?: number; weather_code?: number }
+    }
+
+    if (!data.current || data.current.temperature_2m === undefined) {
+      return buildSimulatedWeather()
+    }
+
+    return {
+      condition: weatherCodeToLabel(data.current.weather_code ?? 0),
+      temperatureC: Math.round(data.current.temperature_2m),
+      source: 'device',
+    }
+  } catch {
+    return buildSimulatedWeather()
+  }
+}
+
+function getDevicePosition(): Promise<{ lat: number; lon: number }> {
+  return new Promise((resolve, reject) => {
+    if (typeof navigator === 'undefined' || !('geolocation' in navigator)) {
+      reject(new Error('Geolocation unavailable'))
+      return
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => resolve({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
+      (err) => reject(err),
+      { timeout: 8000, maximumAge: 300000 },
+    )
+  })
+}
+
+function weatherCodeToLabel(code: number): string {
+  if (code === 0) return 'Clear'
+  if (code <= 3) return 'Partly Cloudy'
+  if (code <= 49) return 'Foggy'
+  if (code <= 59) return 'Drizzle'
+  if (code <= 69) return 'Rain'
+  if (code <= 79) return 'Snow'
+  if (code <= 84) return 'Showers'
+  if (code <= 94) return 'Thunderstorm'
+  return 'Stormy'
+}
+
+function buildSimulatedWeather(): WeatherSnapshot {
   const hour = new Date().getHours()
   const isDay = hour >= 6 && hour < 18
-  const baseTemp = isDay ? 29 : 23
 
   return {
     condition: isDay ? 'Clear' : 'Night',
-    temperatureC: clamp(nudge(baseTemp, 2), 16, 37),
+    temperatureC: isDay ? 29 : 23,
     source: 'simulated',
   }
-}
-
-function nudge(value: number, spread: number) {
-  return Math.round(value + (Math.random() * 2 - 1) * spread)
-}
-
-function clamp(value: number, min: number, max: number) {
-  return Math.max(min, Math.min(max, value))
 }
 
 function sleep(ms: number) {

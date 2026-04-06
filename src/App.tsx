@@ -41,6 +41,7 @@ import {
   savePresetModePreference,
   STANDARD_SESSION_PRESET,
 } from './services/presets'
+import { writeSessionToAppleHealth } from './services/health'
 import { getSupabaseSetupMessage, isSupabaseConfigured, supabase, usesNativeAuthRedirect } from './services/supabase'
 import { createInitialTelemetryState, syncTelemetry } from './services/telemetry'
 import { hasAcceptedCurrentLegalVersions } from './legal'
@@ -680,6 +681,13 @@ function App() {
       return
     }
 
+    void writeSessionToAppleHealth({
+      durationMinutes: sessionPayload.durationMinutes,
+      startedAt: sessionPayload.startedAt,
+      endedAt: sessionPayload.endedAt,
+      weightKg: onboardingProfile?.weightKg,
+    })
+
     if (session?.user.id && isSupabaseConfigured) {
       try {
         const savedWorkout = await saveWorkoutSession(session.user.id, sessionPayload)
@@ -708,7 +716,7 @@ function App() {
     }
 
     setLogs((previous) => mergeWorkoutLogs(previous, [localWorkout]))
-  }, [session?.user.id])
+  }, [onboardingProfile?.weightKg, session?.user.id])
 
   return (
     <div className="app-root relative overflow-hidden text-[var(--text-primary)]">

@@ -21,6 +21,11 @@ const HEALTH_SAMPLE_TYPES: HealthDataType[] = [
   'sleep',
 ]
 
+const HEALTH_WRITE_TYPES: HealthDataType[] = [
+  'activeEnergyBurned' as HealthDataType,
+  'mindfulness' as HealthDataType,
+]
+
 const HEALTH_READ_TYPES: HealthDataType[] = [...HEALTH_SAMPLE_TYPES, 'workouts' as HealthDataType]
 
 interface DerivedHealthInput {
@@ -131,6 +136,7 @@ export async function syncNativeHealth(fallbackHealth: HealthMetrics): Promise<N
   try {
     await Health.requestAuthorization({
       read: HEALTH_READ_TYPES,
+      write: HEALTH_WRITE_TYPES,
     })
   } catch {
     // iOS may throw even when some permissions are granted; continue and read what we can.
@@ -303,4 +309,50 @@ function scaleInverse(value: number, min: number, max: number) {
 
 function clampRounded(value: number, min: number, max: number) {
   return Math.round(Math.max(min, Math.min(max, value)))
+}
+
+const MET_ESTIMATE = 3.5
+const BODY_WEIGHT_KG_FALLBACK = 70
+
+export async function writeSessionToAppleHealth({
+  durationMinutes,
+  startedAt,
+  endedAt,
+  weightKg,
+}: {
+  durationMinutes: number
+  startedAt: string
+  endedAt: string
+  weightKg?: number
+}): Promise<boolean> {
+  if (!supportsNativeHealthSync() || durationMinutes <= 0) {
+    return false
+  }
+
+  const weight = weightKg ?? BODY_WEIGHT_KG_FALLBACK
+  const kcal = Math.round(MET_ESTIMATE * weight * (durationMinutes / 60))
+
+  try {
+    await Health.saveSample({
+      dataType: 'activeEnergyBurned' as HealthDataType,
+      value: kcal,
+      startDate: startedAt,
+      endDate: endedAt,
+    })
+  } catch {
+    // Write failed; do not block the rest of the save flow.
+  }
+
+  try {
+    await Health.saveSample({
+      dataType: 'mindfulness' as HealthDataType,
+      value: durationMinutes,
+      startDate: startedAt,
+      endDate: endedAt,
+    })
+  } catch {
+    // Mindfulness write is optional; ignore failures.
+  }
+
+  return true
 }
