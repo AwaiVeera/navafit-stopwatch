@@ -165,9 +165,9 @@ export function DashboardScreen({
           <div className="card-media-strip card-media-strip-session mt-4" aria-hidden />
 
           <div className="metric-chip-grid mt-4">
-            <MetricChip label="Mode" value={presetMode === 'auto_apply' ? 'Auto Apply' : 'Suggest Only'} unit="" />
-            <MetricChip label="Breath" value={recommendedPreset.breathPreset.label} unit="" />
-            <MetricChip label="Source" value={recommendedPreset.sourceLabel} unit="" />
+            <MetricChip label="Mode" value={presetMode === 'auto_apply' ? 'Auto Apply' : 'Suggest\u00A0Only'} unit="" />
+            <MetricChip label="Breath" value={recommendedPreset.breathPreset.label} unit="" compact />
+            <MetricChip label="Source" value={recommendedPreset.sourceLabel} unit="" compact />
           </div>
 
           <button type="button" className="primary-btn primary-btn-strong mt-5 w-full justify-center" onClick={onOpenStopwatch}>
@@ -329,21 +329,24 @@ function MetricChip({
   label,
   value,
   unit,
+  compact,
 }: {
   label: string
   value: string
   unit: string
+  compact?: boolean
 }) {
+  const valueClass = compact ? 'metric-chip-value-compact' : 'metric-chip-value'
   return (
     <div className="metric-chip">
       <p className="metric-chip-label">{label}</p>
       {unit ? (
         <div className="metric-chip-value-row mt-3">
-          <p className="metric-chip-value">{value}</p>
+          <p className={valueClass}>{value}</p>
           <p className="metric-unit">{unit}</p>
         </div>
       ) : (
-        <p className="metric-chip-value mt-3">{value}</p>
+        <p className={`${valueClass} mt-3`}>{value}</p>
       )}
     </div>
   )
