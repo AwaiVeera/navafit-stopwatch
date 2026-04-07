@@ -1061,6 +1061,17 @@ body {
   gap: 0.65rem;
 }
 
+/* Two buttons in a row: default .button-row is 3 columns, so 2 children each get ~33% width. */
+.button-row--2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.button-row--2 > .primary-btn,
+.button-row--2 > .secondary-btn,
+.button-row--2 > .sso-btn {
+  min-width: 0;
+}
+
 .matte-input {
   width: 100%;
   border: 1px solid var(--surface-border-soft);

@@ -88,7 +88,7 @@ export function PreSessionScreen({
             ))}
           </div>
 
-          <div className="button-row mt-5">
+          <div className="button-row button-row--2 mt-5">
             <button type="button" className="primary-btn primary-btn-strong" onClick={onUseRecommended}>
               {presetMode === 'auto_apply' ? 'Keep auto-applied preset' : 'Use recommended preset'}
             </button>

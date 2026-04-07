@@ -75,7 +75,7 @@ export function BreathScreen({ health, sessionPreset, onBack }: BreathScreenProp
             Guided mode follows your active session preset, while manual mode gives direct inhale/exhale control.
           </p>
 
-          <div className="button-row mt-4">
+          <div className="button-row button-row--2 mt-4">
             <button
               type="button"
               className={`secondary-btn ${breathMode === 'guided' ? 'primary-btn-strong' : ''}`}
