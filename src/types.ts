@@ -147,3 +147,41 @@ export interface TelemetrySyncResult {
   deviceConnections: DeviceConnectionRecord[]
   importedWorkouts: WorkoutLog[]
 }
+
+export type TrainingLevel = 'novice' | 'intermediate' | 'advanced' | 'expert'
+
+export interface StopwatchModeConfig {
+  id: TrainingLevel
+  label: string
+  lapCount: number
+  lapDurationSeconds: number | null
+  intervalSeconds: number | null
+  isAutoLap: boolean
+}
+
+export interface BreathPhase {
+  name: string
+  durationSeconds: number
+  instruction: string
+}
+
+export interface BreathProtocol {
+  id: string
+  label: string
+  description: string
+  pathway: string
+  phases: BreathPhase[]
+  rounds: number | null
+  safetyWarning: string | null
+}
+
+export interface BreathworkMode {
+  id: TrainingLevel
+  label: string
+  protocols: BreathProtocol[]
+}
+
+export interface TrainingProgression {
+  stopwatch: { intermediate: number; advanced: number }
+  breathwork: { intermediate: number; advanced: number }
+}

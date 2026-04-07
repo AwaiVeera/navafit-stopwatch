@@ -12,6 +12,7 @@ import type {
   PersistedAppState,
   SessionSavePayload,
   TelemetryState,
+  TrainingProgression,
   UserConsentRecord,
   WorkoutLog,
   WorkoutSource,
@@ -772,5 +773,100 @@ export async function recordAppUsageEvent({
 
   if (error) {
     throw error
+  }
+}
+
+const LOCAL_PROGRESSION_PREFIX = 'navafit:progression:'
+const EMPTY_PROGRESSION: TrainingProgression = {
+  stopwatch: { intermediate: 0, advanced: 0 },
+  breathwork: { intermediate: 0, advanced: 0 },
+}
+
+function getLocalProgressionKey(userId: string) {
+  return `${LOCAL_PROGRESSION_PREFIX}${userId}`
+}
+
+function isTrainingProgression(value: unknown): value is TrainingProgression {
+  if (!value || typeof value !== 'object') return false
+  const candidate = value as Record<string, unknown>
+  if (!candidate.stopwatch || typeof candidate.stopwatch !== 'object') return false
+  if (!candidate.breathwork || typeof candidate.breathwork !== 'object') return false
+  const sw = candidate.stopwatch as Record<string, unknown>
+  const bw = candidate.breathwork as Record<string, unknown>
+  return (
+    typeof sw.intermediate === 'number' &&
+    typeof sw.advanced === 'number' &&
+    typeof bw.intermediate === 'number' &&
+    typeof bw.advanced === 'number'
+  )
+}
+
+export function loadLocalProgression(userId: string): TrainingProgression {
+  if (typeof window === 'undefined') return { ...EMPTY_PROGRESSION }
+
+  try {
+    const raw = window.localStorage.getItem(getLocalProgressionKey(userId))
+    if (!raw) return { ...EMPTY_PROGRESSION }
+    const parsed: unknown = JSON.parse(raw)
+    if (isTrainingProgression(parsed)) return parsed
+    return { ...EMPTY_PROGRESSION }
+  } catch {
+    return { ...EMPTY_PROGRESSION }
+  }
+}
+
+export function saveLocalProgression(userId: string, progression: TrainingProgression) {
+  if (typeof window === 'undefined') return
+
+  try {
+    window.localStorage.setItem(getLocalProgressionKey(userId), JSON.stringify(progression))
+  } catch {
+    // Ignore storage write failures.
+  }
+}
+
+export async function loadCloudProgression(userId: string): Promise<TrainingProgression> {
+  if (!supabase) return { ...EMPTY_PROGRESSION }
+
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('training_progression')
+      .eq('id', userId)
+      .maybeSingle()
+
+    if (error || !data) return { ...EMPTY_PROGRESSION }
+
+    const raw = (data as { training_progression?: unknown }).training_progression
+    if (isTrainingProgression(raw)) return raw
+    return { ...EMPTY_PROGRESSION }
+  } catch {
+    return { ...EMPTY_PROGRESSION }
+  }
+}
+
+export async function saveCloudProgression(userId: string, progression: TrainingProgression) {
+  if (!supabase) return
+
+  try {
+    await supabase
+      .from('profiles')
+      .update({ training_progression: progression })
+      .eq('id', userId)
+  } catch {
+    // Non-critical: local copy is the primary source.
+  }
+}
+
+export function mergeProgressions(local: TrainingProgression, cloud: TrainingProgression): TrainingProgression {
+  return {
+    stopwatch: {
+      intermediate: Math.max(local.stopwatch.intermediate, cloud.stopwatch.intermediate),
+      advanced: Math.max(local.stopwatch.advanced, cloud.stopwatch.advanced),
+    },
+    breathwork: {
+      intermediate: Math.max(local.breathwork.intermediate, cloud.breathwork.intermediate),
+      advanced: Math.max(local.breathwork.advanced, cloud.breathwork.advanced),
+    },
   }
 }

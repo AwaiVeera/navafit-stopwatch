@@ -24,15 +24,22 @@ import {
 import { resolveAuthenticatedView } from './services/app-flow'
 import {
   ensureProfile,
+  loadCloudProgression,
   loadLocalOnboardingProfile,
+  loadLocalProgression,
   loadLocalWorkoutCache,
   loadPersistedAppState,
+  mergeProgressions,
   recordAppUsageEvent,
+  saveCloudProgression,
+  saveLocalProgression,
   saveOnboardingProfile,
   saveLocalWorkoutCache,
   saveWorkoutSession,
   upsertUserConsent,
 } from './services/data'
+import { BREATHWORK_MODES, getBreathworkMode } from './services/breath-protocols'
+import { getStopwatchMode, STOPWATCH_MODES } from './services/stopwatch-modes'
 import { buildInsightSnapshot } from './services/insights'
 import {
   buildRecommendedSessionPreset,
@@ -53,10 +60,17 @@ import type {
   SessionPreset,
   SessionSavePayload,
   SocialAuthProvider,
+  TrainingLevel,
+  TrainingProgression,
   UserConsentRecord,
   ViewId,
   WorkoutLog,
 } from './types'
+
+const INITIAL_PROGRESSION: TrainingProgression = {
+  stopwatch: { intermediate: 0, advanced: 0 },
+  breathwork: { intermediate: 0, advanced: 0 },
+}
 
 const initialHealth: HealthMetrics = {
   heartRate: 132,
@@ -119,10 +133,16 @@ function App() {
   const [draftPreset, setDraftPreset] = useState<SessionPreset>(STANDARD_SESSION_PRESET)
   const [activeSessionPreset, setActiveSessionPreset] = useState<SessionPreset>(STANDARD_SESSION_PRESET)
   const [isTelemetrySyncing, setIsTelemetrySyncing] = useState(false)
+  const [stopwatchLevel, setStopwatchLevel] = useState<TrainingLevel>('novice')
+  const [breathworkLevel, setBreathworkLevel] = useState<TrainingLevel>('novice')
+  const [progression, setProgression] = useState<TrainingProgression>(INITIAL_PROGRESSION)
   const sessionRef = useRef<Session | null>(null)
   const presetModeRef = useRef(presetMode)
   const pendingProviderRef = useRef<SocialAuthProvider | null>(null)
   const lastUsageScreenRef = useRef('')
+
+  const activeStopwatchMode = useMemo(() => getStopwatchMode(stopwatchLevel), [stopwatchLevel])
+  const activeBreathworkMode = useMemo(() => getBreathworkMode(breathworkLevel), [breathworkLevel])
 
   const totalMinutes = useMemo(
     () => logs.reduce((total, item) => total + item.durationMinutes, 0),
@@ -327,11 +347,16 @@ function App() {
         const cachedWorkoutLogs = loadLocalWorkoutCache(session.user.id)
         const mergedWorkoutLogs = mergeWorkoutLogs(persistedState.logs, cachedWorkoutLogs)
         const onboardingCompleted = persistedState.onboardingCompleted || Boolean(storedOnboardingProfile)
+        const localProg = loadLocalProgression(session.user.id)
+        const cloudProg = await loadCloudProgression(session.user.id)
+        const mergedProg = mergeProgressions(localProg, cloudProg)
+        saveLocalProgression(session.user.id, mergedProg)
 
         if (!isMounted) {
           return
         }
 
+        setProgression(mergedProg)
         setHealth(persistedState.health)
         setLogs(mergedWorkoutLogs)
         saveLocalWorkoutCache(session.user.id, mergedWorkoutLogs)
@@ -692,10 +717,33 @@ function App() {
     setCurrentView('stopwatch')
   }, [draftPreset])
 
+  const incrementProgression = useCallback((category: 'stopwatch' | 'breathwork', level: TrainingLevel) => {
+    if (level !== 'intermediate' && level !== 'advanced') return
+
+    setProgression((prev) => {
+      const updated: TrainingProgression = {
+        ...prev,
+        [category]: {
+          ...prev[category],
+          [level]: prev[category][level] + 1,
+        },
+      }
+
+      if (session?.user.id) {
+        saveLocalProgression(session.user.id, updated)
+        void saveCloudProgression(session.user.id, updated)
+      }
+
+      return updated
+    })
+  }, [session?.user.id])
+
   const handleSaveStopwatchSession = useCallback(async (sessionPayload: SessionSavePayload) => {
     if (sessionPayload.durationMinutes <= 0) {
       return
     }
+
+    incrementProgression('stopwatch', stopwatchLevel)
 
     void writeSessionToAppleHealth({
       durationMinutes: sessionPayload.durationMinutes,
@@ -732,7 +780,15 @@ function App() {
     }
 
     setLogs((previous) => mergeWorkoutLogs(previous, [localWorkout]))
-  }, [onboardingProfile?.weightKg, session?.user.id])
+  }, [incrementProgression, onboardingProfile?.weightKg, session?.user.id, stopwatchLevel])
+
+  const handleChangeStopwatchMode = useCallback((level: TrainingLevel) => {
+    setStopwatchLevel(level)
+  }, [])
+
+  const handleChangeBreathworkMode = useCallback((level: TrainingLevel) => {
+    setBreathworkLevel(level)
+  }, [])
 
   return (
     <div className="app-root relative overflow-hidden text-[var(--text-primary)]">
@@ -816,11 +872,18 @@ function App() {
                   presetMode={presetMode}
                   recommendedPreset={recommendedPreset}
                   draftPreset={draftPreset}
+                  stopwatchMode={activeStopwatchMode}
+                  breathworkMode={activeBreathworkMode}
+                  allStopwatchModes={STOPWATCH_MODES}
+                  allBreathworkModes={BREATHWORK_MODES}
+                  progression={progression}
                   onBack={() => setCurrentView('dashboard')}
                   onChangeMode={handleChangePresetMode}
                   onUseRecommended={handleUseRecommendedPreset}
                   onUseStandard={handleUseStandardPreset}
                   onStartSession={handleStartSession}
+                  onChangeStopwatchMode={handleChangeStopwatchMode}
+                  onChangeBreathworkMode={handleChangeBreathworkMode}
                 />
               )}
 
@@ -830,6 +893,7 @@ function App() {
                   weatherSnapshot={telemetry.weatherSnapshot}
                   heartRate={health.heartRate}
                   sessionPreset={activeSessionPreset}
+                  stopwatchMode={activeStopwatchMode}
                   onSaveSession={handleSaveStopwatchSession}
                 />
               )}
@@ -838,6 +902,7 @@ function App() {
                 <BreathScreen
                   health={health}
                   sessionPreset={activeSessionPreset}
+                  breathworkMode={activeBreathworkMode}
                   onBack={() => setCurrentView('dashboard')}
                 />
               )}

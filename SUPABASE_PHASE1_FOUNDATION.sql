@@ -321,3 +321,7 @@ create policy "Users can manage own app usage events insert"
   on public.app_usage_events
   for insert
   with check (auth.uid() = user_id);
+
+-- Training progression column (tracks completed sessions per mode for unlock gates)
+alter table public.profiles
+  add column if not exists training_progression jsonb default '{}';

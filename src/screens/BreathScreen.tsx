@@ -1,23 +1,48 @@
 import { useEffect, useMemo, useState } from 'react'
 
-import type { HealthMetrics, SessionPreset } from '../types'
+import type { BreathProtocol, BreathworkMode, HealthMetrics, SessionPreset } from '../types'
 
 interface BreathScreenProps {
   health: HealthMetrics
   sessionPreset: SessionPreset
+  breathworkMode: BreathworkMode
   onBack: () => void
 }
 
-export function BreathScreen({ health, sessionPreset, onBack }: BreathScreenProps) {
+export function BreathScreen({ health, sessionPreset, breathworkMode, onBack }: BreathScreenProps) {
+  const isNovice = breathworkMode.id === 'novice' || breathworkMode.protocols.length === 0
+
+  if (isNovice) {
+    return <NoviceBreathScreen health={health} sessionPreset={sessionPreset} onBack={onBack} />
+  }
+
+  return (
+    <ProtocolBreathScreen
+      health={health}
+      breathworkMode={breathworkMode}
+      onBack={onBack}
+    />
+  )
+}
+
+// --- Novice: original behavior preserved exactly ---
+
+function NoviceBreathScreen({
+  health,
+  sessionPreset,
+  onBack,
+}: {
+  health: HealthMetrics
+  sessionPreset: SessionPreset
+  onBack: () => void
+}) {
   const [breathSecond, setBreathSecond] = useState(0)
   const [breathMode, setBreathMode] = useState<'guided' | 'manual'>('guided')
   const [manualPhase, setManualPhase] = useState<'Inhale' | 'Hold' | 'Exhale'>('Inhale')
   const breathCycleSeconds = sessionPreset.breathPreset.cycleSeconds
 
   useEffect(() => {
-    if (breathMode !== 'guided') {
-      return undefined
-    }
+    if (breathMode !== 'guided') return undefined
 
     const breathId = window.setInterval(() => {
       setBreathSecond((previous) => (previous + 1) % breathCycleSeconds)
@@ -162,6 +187,249 @@ export function BreathScreen({ health, sessionPreset, onBack }: BreathScreenProp
       </div>
     </section>
   )
+}
+
+// --- Intermediate / Advanced / Expert: protocol-driven ---
+
+function ProtocolBreathScreen({
+  health,
+  breathworkMode,
+  onBack,
+}: {
+  health: HealthMetrics
+  breathworkMode: BreathworkMode
+  onBack: () => void
+}) {
+  const [selectedProtocol, setSelectedProtocol] = useState<BreathProtocol | null>(null)
+  const [isActive, setIsActive] = useState(false)
+  const [currentPhaseIndex, setCurrentPhaseIndex] = useState(0)
+  const [phaseElapsedMs, setPhaseElapsedMs] = useState(0)
+  const [currentRound, setCurrentRound] = useState(1)
+  const [isComplete, setIsComplete] = useState(false)
+
+  const protocol = selectedProtocol
+  const phase = protocol ? protocol.phases[currentPhaseIndex] : null
+  const phaseDurationMs = phase ? phase.durationSeconds * 1000 : 0
+  const phaseRemainingMs = Math.max(0, phaseDurationMs - phaseElapsedMs)
+  const totalRounds = protocol?.rounds ?? null
+
+  useEffect(() => {
+    if (!isActive || !protocol || !phase) return undefined
+
+    const startTime = performance.now()
+
+    const tickInterval = window.setInterval(() => {
+      const elapsed = performance.now() - startTime
+      setPhaseElapsedMs(elapsed)
+
+      if (elapsed >= phaseDurationMs) {
+        window.clearInterval(tickInterval)
+
+        const nextPhaseIndex = currentPhaseIndex + 1
+        if (nextPhaseIndex < protocol.phases.length) {
+          setCurrentPhaseIndex(nextPhaseIndex)
+          setPhaseElapsedMs(0)
+        } else {
+          if (totalRounds !== null) {
+            if (currentRound >= totalRounds) {
+              setIsActive(false)
+              setIsComplete(true)
+              return
+            }
+            setCurrentRound((prev) => prev + 1)
+          }
+          setCurrentPhaseIndex(0)
+          setPhaseElapsedMs(0)
+        }
+      }
+    }, 50)
+
+    return () => window.clearInterval(tickInterval)
+  }, [isActive, protocol, phase, phaseDurationMs, currentPhaseIndex, totalRounds, currentRound])
+
+  const phaseRingClass =
+    phase?.name.toLowerCase().includes('inhale')
+      ? 'breath-inhale'
+      : phase?.name.toLowerCase().includes('hold') || phase?.name.toLowerCase().includes('pause')
+        ? 'breath-hold'
+        : 'breath-exhale'
+
+  const handleStart = () => {
+    setCurrentPhaseIndex(0)
+    setPhaseElapsedMs(0)
+    setCurrentRound(1)
+    setIsComplete(false)
+    setIsActive(true)
+  }
+
+  const handleStop = () => {
+    setIsActive(false)
+    setCurrentPhaseIndex(0)
+    setPhaseElapsedMs(0)
+    setCurrentRound(1)
+    setIsComplete(false)
+  }
+
+  if (!selectedProtocol) {
+    return (
+      <section className="screen-shell">
+        <div className="top-chrome">
+          <button type="button" className="round-icon-btn" onClick={onBack} aria-label="Back">
+            <BackIcon />
+          </button>
+          <div className="dashboard-status-chip">{breathworkMode.label}</div>
+        </div>
+
+        <div className="content-stack space-y-4">
+          <article className="glass-sheet">
+            <p className="section-kicker">Breath Cadence</p>
+            <h2 className="section-title mt-2">{breathworkMode.label} Breathwork</h2>
+            <p className="support-copy mt-2">Choose a protocol to begin your guided breathing session.</p>
+          </article>
+
+          {breathworkMode.protocols.map((proto) => (
+            <button
+              key={proto.id}
+              type="button"
+              className="glass-sheet protocol-card w-full text-left"
+              onClick={() => setSelectedProtocol(proto)}
+            >
+              <p className="title-font text-[1.15rem] font-medium text-[var(--text-primary)]">{proto.label}</p>
+              <p className="support-copy mt-1">{proto.description}</p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <span className="protocol-tag">{proto.pathway}</span>
+                {proto.rounds !== null && <span className="protocol-tag">{proto.rounds} rounds</span>}
+                {proto.phases.map((p) => (
+                  <span key={p.name} className="protocol-tag">{p.name} {p.durationSeconds}s</span>
+                ))}
+              </div>
+              {proto.safetyWarning && (
+                <div className="safety-banner mt-3">
+                  {proto.safetyWarning}
+                </div>
+              )}
+            </button>
+          ))}
+
+          <article className="glass-sheet breath-marker-sheet">
+            <div className="metric-chip-grid mt-2">
+              <MetricChip label="Heart Rate" value={`${health.heartRate} BPM`} />
+              <MetricChip label="Breath Rate" value={`${health.breathPerMinute}/min`} />
+              <MetricChip label="Stress" value={`${health.stressLevel}%`} />
+            </div>
+          </article>
+        </div>
+      </section>
+    )
+  }
+
+  return (
+    <section className="screen-shell">
+      <div className="top-chrome">
+        <button
+          type="button"
+          className="round-icon-btn"
+          onClick={() => {
+            handleStop()
+            setSelectedProtocol(null)
+          }}
+          aria-label="Back to protocols"
+        >
+          <BackIcon />
+        </button>
+        <div className="dashboard-status-chip">{selectedProtocol.label}</div>
+      </div>
+
+      <div className="content-stack space-y-4">
+        <article className="glass-sheet breath-primary-sheet">
+          <p className="section-kicker">{breathworkMode.label} Breathwork</p>
+          <h2 className="section-title mt-2">{selectedProtocol.label}</h2>
+          <p className="support-copy mt-2">{selectedProtocol.pathway}</p>
+
+          {selectedProtocol.safetyWarning && (
+            <div className="safety-banner mt-3">{selectedProtocol.safetyWarning}</div>
+          )}
+
+          <div className="card-media-strip card-media-strip-breath mt-4" aria-hidden />
+
+          <div className="mt-8 grid place-items-center breath-orb-wrap">
+            <div className={`breath-orb breath-orb-reference ${isComplete ? 'breath-hold' : phaseRingClass}`}>
+              <span className="hud-font text-sm text-[var(--text-secondary)]">
+                {isComplete ? 'Done' : phase?.name ?? 'Ready'}
+              </span>
+            </div>
+          </div>
+
+          {isActive && phase && (
+            <div className="mt-4 text-center space-y-1">
+              <p className="hud-font text-[2rem] font-semibold text-[var(--text-primary)]">
+                {formatCountdown(phaseRemainingMs)}
+              </p>
+              <p className="support-copy">{phase.instruction}</p>
+              {totalRounds !== null && (
+                <p className="hud-font text-xs text-[var(--text-muted)]">
+                  Round {currentRound} of {totalRounds}
+                </p>
+              )}
+            </div>
+          )}
+
+          {isComplete && (
+            <div className="mt-4 text-center">
+              <p className="hud-font text-[1.2rem] text-[var(--accent-deep)]">Protocol complete</p>
+            </div>
+          )}
+
+          {!isActive && !isComplete && (
+            <div className="mt-6 grid grid-cols-3 gap-3 text-center">
+              {selectedProtocol.phases.map((p) => (
+                <div key={p.name} className="glass-card-compact breath-phase-tile">
+                  <p className="label-text">{p.name}</p>
+                  <p className="mt-2 text-[1.05rem] text-[var(--text-primary)]">{p.durationSeconds}s</p>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="button-row button-row--2 mt-5">
+            <button
+              type="button"
+              className="primary-btn primary-btn-strong"
+              onClick={isActive ? handleStop : handleStart}
+            >
+              {isActive ? 'Stop' : isComplete ? 'Restart' : 'Begin'}
+            </button>
+            <button
+              type="button"
+              className="secondary-btn"
+              onClick={() => {
+                handleStop()
+                setSelectedProtocol(null)
+              }}
+            >
+              Change Protocol
+            </button>
+          </div>
+        </article>
+
+        <article className="glass-sheet breath-marker-sheet">
+          <div className="metric-chip-grid mt-2">
+            <MetricChip label="Heart Rate" value={`${health.heartRate} BPM`} />
+            <MetricChip label="Breath Rate" value={`${health.breathPerMinute}/min`} />
+            <MetricChip label="Stress" value={`${health.stressLevel}%`} />
+          </div>
+        </article>
+      </div>
+    </section>
+  )
+}
+
+function formatCountdown(ms: number): string {
+  const totalSeconds = Math.ceil(ms / 1000)
+  const minutes = Math.floor(totalSeconds / 60)
+  const seconds = totalSeconds % 60
+  if (minutes > 0) return `${minutes}:${seconds.toString().padStart(2, '0')}`
+  return `${seconds}s`
 }
 
 function MetricChip({ label, value }: { label: string; value: string }) {

@@ -2,13 +2,16 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { hapticLap, hapticStartPause } from '../services/haptics'
 import { computeLapSplits, formatStopwatch } from '../services/stopwatch'
-import type { SessionPreset, SessionSavePayload, WeatherSnapshot } from '../types'
+import type { SessionPreset, SessionSavePayload, StopwatchModeConfig, WeatherSnapshot } from '../types'
+
+type AutoLapPhase = 'idle' | 'lap' | 'rest' | 'complete'
 
 interface StopwatchScreenProps {
   onBack: () => void
   weatherSnapshot: WeatherSnapshot
   heartRate: number
   sessionPreset: SessionPreset
+  stopwatchMode: StopwatchModeConfig
   onSaveSession: (session: SessionSavePayload) => Promise<void> | void
 }
 
@@ -17,6 +20,7 @@ export function StopwatchScreen({
   weatherSnapshot,
   heartRate,
   sessionPreset,
+  stopwatchMode,
   onSaveSession,
 }: StopwatchScreenProps) {
   const [isRunning, setIsRunning] = useState(false)
@@ -30,10 +34,21 @@ export function StopwatchScreen({
   const hasSavedSessionRef = useRef(false)
   const sessionStartedAtRef = useRef<string | null>(null)
 
+  const [autoLapPhase, setAutoLapPhase] = useState<AutoLapPhase>('idle')
+  const [currentLapIndex, setCurrentLapIndex] = useState(0)
+  const [lapElapsedMs, setLapElapsedMs] = useState(0)
+  const [restRemainingMs, setRestRemainingMs] = useState(0)
+  const restTimerRef = useRef<number | null>(null)
+  const lapTimerStartRef = useRef<number | null>(null)
+
+  const isAutoLap = stopwatchMode.isAutoLap
+  const lapDurationMs = (stopwatchMode.lapDurationSeconds ?? 0) * 1000
+  const intervalMs = (stopwatchMode.intervalSeconds ?? 0) * 1000
+
+  // --- Novice: original rAF-based stopwatch ---
   useEffect(() => {
-    if (!isRunning) {
-      return undefined
-    }
+    if (isAutoLap) return undefined
+    if (!isRunning) return undefined
 
     const step = (timestamp: number) => {
       if (runningStartRef.current === null) {
@@ -53,26 +68,94 @@ export function StopwatchScreen({
         animationFrameRef.current = null
       }
     }
-  }, [isRunning])
+  }, [isRunning, isAutoLap])
+
+  // --- Auto-lap: per-lap countdown timer ---
+  useEffect(() => {
+    if (!isAutoLap) return undefined
+    if (autoLapPhase !== 'lap') return undefined
+
+    lapTimerStartRef.current = performance.now()
+    let frameId: number | null = null
+
+    const step = (timestamp: number) => {
+      const startMs = lapTimerStartRef.current ?? timestamp
+      const elapsed = timestamp - startMs
+      setLapElapsedMs(elapsed)
+
+      const totalElapsed = carriedElapsedRef.current + elapsed
+      setElapsedMs(totalElapsed)
+
+      if (elapsed >= lapDurationMs) {
+        hapticLap()
+        carriedElapsedRef.current += lapDurationMs
+        setLapElapsedMs(0)
+        setLaps((prev) => [carriedElapsedRef.current, ...prev])
+
+        const nextLapIndex = currentLapIndex + 1
+        if (nextLapIndex >= stopwatchMode.lapCount) {
+          setAutoLapPhase('complete')
+          setIsRunning(false)
+          return
+        }
+
+        setCurrentLapIndex(nextLapIndex)
+        setAutoLapPhase('rest')
+        return
+      }
+
+      frameId = window.requestAnimationFrame(step)
+    }
+
+    frameId = window.requestAnimationFrame(step)
+
+    return () => {
+      if (frameId !== null) window.cancelAnimationFrame(frameId)
+    }
+  }, [autoLapPhase, isAutoLap, lapDurationMs, currentLapIndex, stopwatchMode.lapCount])
+
+  // --- Auto-lap: rest interval countdown ---
+  useEffect(() => {
+    if (!isAutoLap) return undefined
+    if (autoLapPhase !== 'rest') return undefined
+
+    const startTime = performance.now()
+
+    const tickInterval = window.setInterval(() => {
+      const elapsed = performance.now() - startTime
+      const remaining = Math.max(0, intervalMs - elapsed)
+      setRestRemainingMs(remaining)
+
+      if (remaining <= 0) {
+        window.clearInterval(tickInterval)
+        restTimerRef.current = null
+        setAutoLapPhase('lap')
+      }
+    }, 100)
+
+    restTimerRef.current = tickInterval
+
+    return () => {
+      if (restTimerRef.current !== null) {
+        window.clearInterval(restTimerRef.current)
+        restTimerRef.current = null
+      }
+    }
+  }, [autoLapPhase, isAutoLap, intervalMs])
 
   useEffect(() => {
     latestElapsedRef.current = elapsedMs
   }, [elapsedMs])
 
   const persistSession = useCallback(() => {
-    const liveElapsed =
-      runningStartRef.current === null
+    const liveElapsed = isAutoLap
+      ? carriedElapsedRef.current
+      : runningStartRef.current === null
         ? latestElapsedRef.current
         : carriedElapsedRef.current + (performance.now() - runningStartRef.current)
     const minutes = Math.floor(liveElapsed / 60000)
 
-    if (hasSavedSessionRef.current) {
-      return
-    }
-
-    if (minutes <= 0) {
-      return
-    }
+    if (hasSavedSessionRef.current || minutes <= 0) return
 
     hasSavedSessionRef.current = true
     const endedAt = new Date().toISOString()
@@ -80,7 +163,7 @@ export function StopwatchScreen({
 
     void onSaveSession({
       title: sessionPreset.title,
-      note: `Captured from the adaptive stopwatch using the ${sessionPreset.breathPreset.label}.`,
+      note: `${stopwatchMode.label} mode using the ${sessionPreset.breathPreset.label}.`,
       durationMinutes: minutes,
       startedAt,
       endedAt,
@@ -90,21 +173,32 @@ export function StopwatchScreen({
         presetTitle: sessionPreset.title,
         presetTargetMinutes: sessionPreset.targetMinutes,
         breathPreset: sessionPreset.breathPreset.label,
+        stopwatchMode: stopwatchMode.id,
         lapCount: laps.length,
         lapSplitsMs: computeLapSplits(laps).map((s) => s.splitMs),
       },
     })
-  }, [laps, onSaveSession, sessionPreset])
+  }, [isAutoLap, laps, onSaveSession, sessionPreset, stopwatchMode])
+
+  // Auto-save when auto-lap completes
+  useEffect(() => {
+    if (autoLapPhase === 'complete') persistSession()
+  }, [autoLapPhase, persistSession])
 
   useEffect(() => {
-    return () => {
-      persistSession()
-    }
+    return () => { persistSession() }
   }, [persistSession])
 
   const displayTime = useMemo(() => formatStopwatch(elapsedMs), [elapsedMs])
   const lapSplits = useMemo(() => computeLapSplits(laps), [laps])
-  const sessionProgress = Math.min(elapsedMs / (sessionPreset.targetMinutes * 60 * 1000), 1)
+
+  const sessionProgress = isAutoLap
+    ? (() => {
+        const totalLapMs = stopwatchMode.lapCount * lapDurationMs
+        return totalLapMs > 0 ? Math.min(elapsedMs / totalLapMs, 1) : 0
+      })()
+    : Math.min(elapsedMs / (sessionPreset.targetMinutes * 60 * 1000), 1)
+
   const weatherLabel =
     weatherSnapshot.temperatureC === null
       ? weatherSnapshot.condition
@@ -116,6 +210,11 @@ export function StopwatchScreen({
       animationFrameRef.current = null
     }
 
+    if (restTimerRef.current !== null) {
+      window.clearInterval(restTimerRef.current)
+      restTimerRef.current = null
+    }
+
     setIsRunning(false)
     carriedElapsedRef.current = 0
     runningStartRef.current = null
@@ -124,10 +223,24 @@ export function StopwatchScreen({
     sessionStartedAtRef.current = null
     setElapsedMs(0)
     setLaps([])
+    setAutoLapPhase('idle')
+    setCurrentLapIndex(0)
+    setLapElapsedMs(0)
+    setRestRemainingMs(0)
   }
 
   const handleStartPause = () => {
     hapticStartPause()
+
+    if (isAutoLap) {
+      if (autoLapPhase === 'idle' || autoLapPhase === 'complete') {
+        if (autoLapPhase === 'complete') handleReset()
+        if (!sessionStartedAtRef.current) sessionStartedAtRef.current = new Date().toISOString()
+        setIsRunning(true)
+        setAutoLapPhase('lap')
+      }
+      return
+    }
 
     if (isRunning) {
       if (runningStartRef.current !== null) {
@@ -139,10 +252,7 @@ export function StopwatchScreen({
       return
     }
 
-    if (!sessionStartedAtRef.current) {
-      sessionStartedAtRef.current = new Date().toISOString()
-    }
-
+    if (!sessionStartedAtRef.current) sessionStartedAtRef.current = new Date().toISOString()
     runningStartRef.current = performance.now()
     setIsRunning(true)
   }
@@ -152,20 +262,15 @@ export function StopwatchScreen({
     onBack()
   }
 
+  const lapRemainingMs = isAutoLap ? Math.max(0, lapDurationMs - lapElapsedMs) : 0
+
   return (
     <section className="screen-shell">
       <div className="top-chrome">
         <button type="button" className="round-icon-btn" onClick={handleBack} aria-label="Back">
           <BackIcon />
         </button>
-        <button
-          type="button"
-          className="round-icon-btn"
-          aria-label="Jump to lap memory"
-          onClick={() => lapsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-        >
-          <GridIcon />
-        </button>
+        <div className="dashboard-status-chip">{stopwatchMode.label}</div>
       </div>
 
       <div className="content-stack space-y-4">
@@ -176,10 +281,39 @@ export function StopwatchScreen({
 
           <div className="stopwatch-timer-well mt-6 px-5 py-6">
             <div className="card-media-strip card-media-strip-stopwatch" aria-hidden />
-            <p className="hud-font text-[3rem] font-semibold tracking-[-0.06em] text-[var(--text-primary)] sm:text-[3.4rem]">
-              {displayTime}
-            </p>
-            <div className={`timer-ring mt-5 ${isRunning ? 'timer-ring-spin' : ''}`} />
+
+            {autoLapPhase === 'rest' ? (
+              <div className="stopwatch-rest-overlay">
+                <p className="hud-font text-[1.4rem] text-[var(--text-secondary)]">Rest</p>
+                <p className="hud-font text-[2.6rem] font-semibold tracking-[-0.06em] text-[var(--text-primary)]">
+                  {formatStopwatch(restRemainingMs)}
+                </p>
+                <p className="support-copy mt-2">Next lap starts automatically</p>
+              </div>
+            ) : autoLapPhase === 'complete' ? (
+              <div className="stopwatch-rest-overlay">
+                <p className="hud-font text-[1.4rem] text-[var(--accent-deep)]">Session Complete</p>
+                <p className="hud-font text-[3rem] font-semibold tracking-[-0.06em] text-[var(--text-primary)] sm:text-[3.4rem]">
+                  {displayTime}
+                </p>
+                <p className="support-copy mt-2">{stopwatchMode.lapCount} laps finished</p>
+              </div>
+            ) : (
+              <>
+                <p className="hud-font text-[3rem] font-semibold tracking-[-0.06em] text-[var(--text-primary)] sm:text-[3.4rem]">
+                  {displayTime}
+                </p>
+                <div className={`timer-ring mt-5 ${isRunning ? 'timer-ring-spin' : ''}`} />
+              </>
+            )}
+
+            {isAutoLap && autoLapPhase === 'lap' && (
+              <div className="mt-3 text-center">
+                <p className="hud-font text-sm text-[var(--text-secondary)]">
+                  Lap {currentLapIndex + 1} of {stopwatchMode.lapCount} &mdash; {formatStopwatch(lapRemainingMs)} remaining
+                </p>
+              </div>
+            )}
 
             <div className="mt-4 space-y-2">
               <div className="soft-progress">
@@ -189,8 +323,17 @@ export function StopwatchScreen({
                 />
               </div>
               <div className="info-row text-sm text-[var(--text-muted)]">
-                <span>{sessionPreset.targetMinutes} min target</span>
-                <span className="hud-font text-[var(--text-secondary)]">{Math.round(sessionProgress * 100)}%</span>
+                {isAutoLap ? (
+                  <>
+                    <span>{stopwatchMode.lapCount} laps &times; {(stopwatchMode.lapDurationSeconds ?? 0) / 60} min</span>
+                    <span className="hud-font text-[var(--text-secondary)]">{Math.round(sessionProgress * 100)}%</span>
+                  </>
+                ) : (
+                  <>
+                    <span>{sessionPreset.targetMinutes} min target</span>
+                    <span className="hud-font text-[var(--text-secondary)]">{Math.round(sessionProgress * 100)}%</span>
+                  </>
+                )}
               </div>
             </div>
           </div>
@@ -203,29 +346,45 @@ export function StopwatchScreen({
             <MetricChip label="Breath" value={sessionPreset.breathPreset.label} />
           </div>
 
-          <div className="button-row mt-5">
-            <button
-              type="button"
-              className={`primary-btn ${isRunning ? '' : 'primary-btn-strong'}`}
-              onClick={handleStartPause}
-            >
-              {isRunning ? 'Pause' : 'Start'}
-            </button>
-            <button
-              type="button"
-              className="secondary-btn"
-              onClick={() => {
-                hapticLap()
-                setLaps((previous) => [elapsedMs, ...previous])
-              }}
-              disabled={!isRunning}
-            >
-              Lap
-            </button>
-            <button type="button" className="secondary-btn" onClick={handleReset}>
-              Reset
-            </button>
-          </div>
+          {isAutoLap ? (
+            <div className="button-row button-row--2 mt-5">
+              <button
+                type="button"
+                className="primary-btn primary-btn-strong"
+                onClick={handleStartPause}
+                disabled={autoLapPhase === 'lap' || autoLapPhase === 'rest'}
+              >
+                {autoLapPhase === 'complete' ? 'Restart' : 'Start'}
+              </button>
+              <button type="button" className="secondary-btn" onClick={handleReset}>
+                Reset
+              </button>
+            </div>
+          ) : (
+            <div className="button-row mt-5">
+              <button
+                type="button"
+                className={`primary-btn ${isRunning ? '' : 'primary-btn-strong'}`}
+                onClick={handleStartPause}
+              >
+                {isRunning ? 'Pause' : 'Start'}
+              </button>
+              <button
+                type="button"
+                className="secondary-btn"
+                onClick={() => {
+                  hapticLap()
+                  setLaps((previous) => [elapsedMs, ...previous])
+                }}
+                disabled={!isRunning}
+              >
+                Lap
+              </button>
+              <button type="button" className="secondary-btn" onClick={handleReset}>
+                Reset
+              </button>
+            </div>
+          )}
         </article>
 
         <article ref={lapsRef} className="glass-sheet stopwatch-lap-sheet min-h-28">
@@ -272,26 +431,6 @@ function BackIcon() {
   return (
     <svg viewBox="0 0 20 20" aria-hidden className="h-4 w-4 fill-none stroke-current stroke-[1.6]">
       <path d="M11.8 4.5 6.2 10l5.6 5.5" />
-    </svg>
-  )
-}
-
-function GridIcon() {
-  return (
-    <svg viewBox="0 0 20 20" aria-hidden className="h-4 w-4 fill-current">
-      {[
-        [5, 5],
-        [10, 5],
-        [15, 5],
-        [5, 10],
-        [10, 10],
-        [15, 10],
-        [5, 15],
-        [10, 15],
-        [15, 15],
-      ].map(([cx, cy]) => (
-        <circle key={`${cx}-${cy}`} cx={cx} cy={cy} r="1" />
-      ))}
     </svg>
   )
 }
