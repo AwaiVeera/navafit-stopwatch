@@ -41,6 +41,8 @@
 	<string>NavaFit reads Apple Health data that you approve so it can sync workouts and tailor future session presets.</string>
 	<key>NSHealthUpdateUsageDescription</key>
 	<string>NavaFit writes health entries only when you explicitly choose to save supported workout data.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>NavaFit uses your approximate location once per sync to show local weather on the dashboard.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

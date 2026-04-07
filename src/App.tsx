@@ -41,7 +41,7 @@ import {
   savePresetModePreference,
   STANDARD_SESSION_PRESET,
 } from './services/presets'
-import { writeSessionToAppleHealth } from './services/health'
+import { supportsNativeHealthSync, writeSessionToAppleHealth } from './services/health'
 import { getSupabaseSetupMessage, isSupabaseConfigured, supabase, usesNativeAuthRedirect } from './services/supabase'
 import { createInitialTelemetryState, syncTelemetry } from './services/telemetry'
 import { hasAcceptedCurrentLegalVersions } from './legal'
@@ -612,12 +612,28 @@ function App() {
       return
     }
 
-    if (telemetry.lastSyncLabel !== 'Not synced yet') {
+    const allowHealthSync = Boolean(consentRecord?.acceptedHealthSyncAt && hasCurrentConsent)
+    // A row in telemetry_snapshots always yields lastSyncLabel "Synced …", even when that run used
+    // the non-Health stub (web or pre-consent). Users who later opt into Health on iOS would never
+    // auto-sync again if we only keyed off lastSyncLabel.
+    const needsInitialTelemetryRow = telemetry.lastSyncLabel === 'Not synced yet'
+    const needsIosHealthKitPull =
+      allowHealthSync && supportsNativeHealthSync() && telemetry.healthApp === 'idle'
+
+    if (!needsInitialTelemetryRow && !needsIosHealthKitPull) {
       return
     }
 
     void handleTelemetrySync()
-  }, [handleTelemetrySync, hasCurrentConsent, isAuthBootstrapping, isAuthenticated, telemetry.lastSyncLabel])
+  }, [
+    consentRecord?.acceptedHealthSyncAt,
+    handleTelemetrySync,
+    hasCurrentConsent,
+    isAuthBootstrapping,
+    isAuthenticated,
+    telemetry.healthApp,
+    telemetry.lastSyncLabel,
+  ])
 
   useEffect(() => {
     if (!isAuthenticated || !usageAnalyticsEnabled || !session?.user.id) {

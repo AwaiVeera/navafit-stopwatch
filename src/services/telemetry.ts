@@ -1,3 +1,6 @@
+import { Capacitor } from '@capacitor/core'
+import { Geolocation } from '@capacitor/geolocation'
+
 import {
   recordSyncEvent,
   saveDeviceConnections,
@@ -167,12 +170,14 @@ function detectCapabilities(): DeviceCapabilities {
   const hasWindow = typeof window !== 'undefined'
   const hasNavigator = typeof navigator !== 'undefined'
   const platformHasCapacitor = hasWindow && Boolean((window as { Capacitor?: unknown }).Capacitor)
-  const geolocationAvailable = hasNavigator && 'geolocation' in navigator
+  const webGeolocation = hasNavigator && 'geolocation' in navigator
+  // Native iOS uses @capacitor/geolocation (Info.plist must include NSLocationWhenInUseUsageDescription).
+  const weather = Capacitor.isNativePlatform() || webGeolocation
 
   return {
     healthApp: platformHasCapacitor,
     fitnessWatch: platformHasCapacitor,
-    weather: geolocationAvailable,
+    weather,
   }
 }
 
@@ -208,7 +213,22 @@ async function fetchWeatherSnapshot(weatherCapability: boolean): Promise<Weather
   }
 }
 
-function getDevicePosition(): Promise<{ lat: number; lon: number }> {
+async function getDevicePosition(): Promise<{ lat: number; lon: number }> {
+  if (Capacitor.isNativePlatform()) {
+    const status = await Geolocation.requestPermissions().catch(() => null)
+    if (status && status.location === 'denied') {
+      throw new Error('Location permission denied')
+    }
+
+    const position = await Geolocation.getCurrentPosition({
+      enableHighAccuracy: false,
+      timeout: 15000,
+      maximumAge: 300_000,
+    })
+
+    return { lat: position.coords.latitude, lon: position.coords.longitude }
+  }
+
   return new Promise((resolve, reject) => {
     if (typeof navigator === 'undefined' || !('geolocation' in navigator)) {
       reject(new Error('Geolocation unavailable'))
