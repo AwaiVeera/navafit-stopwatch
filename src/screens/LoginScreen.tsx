@@ -91,7 +91,7 @@ export function LoginScreen({
 
           <div className="login-hero-support glass-card">
             <p className="support-copy text-center">
-              Kalari, Gadah, and breathwork tracking in a cleaner matte-glass interface.
+              Art Of Tactical Flowmentum
             </p>
           </div>
         </section>
