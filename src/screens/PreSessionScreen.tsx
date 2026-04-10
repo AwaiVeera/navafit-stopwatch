@@ -1,11 +1,19 @@
 import type {
   BreathworkMode,
+  HealthMetrics,
   PresetMode,
   SessionPreset,
   StopwatchModeConfig,
   TrainingLevel,
   TrainingProgression,
+  WorkoutLog,
 } from '../types'
+import {
+  AI_ENGINE_LABEL,
+  predictRecovery,
+  recommendTrainingModes,
+  suggestBreathProtocol,
+} from '../services/ai-engine'
 
 const UNLOCK_THRESHOLD = 30
 
@@ -18,6 +26,8 @@ interface PreSessionScreenProps {
   allStopwatchModes: readonly StopwatchModeConfig[]
   allBreathworkModes: readonly BreathworkMode[]
   progression: TrainingProgression
+  health: HealthMetrics
+  logs: WorkoutLog[]
   onBack: () => void
   onChangeMode: (mode: PresetMode) => void
   onUseRecommended: () => void
@@ -74,6 +84,8 @@ export function PreSessionScreen({
   allStopwatchModes,
   allBreathworkModes,
   progression,
+  health,
+  logs,
   onBack,
   onChangeMode,
   onUseRecommended,
@@ -83,6 +95,9 @@ export function PreSessionScreen({
   onChangeBreathworkMode,
 }: PreSessionScreenProps) {
   const isRecommendedActive = draftPreset.id === recommendedPreset.id
+  const modeRec = recommendTrainingModes(progression, health, logs)
+  const recovery = predictRecovery(health, logs)
+  const breathSuggestion = suggestBreathProtocol(health)
 
   return (
     <section className="screen-shell">
@@ -117,6 +132,32 @@ export function PreSessionScreen({
             >
               Auto Apply
             </button>
+          </div>
+        </article>
+
+        {/* AI Recommendation */}
+        <article className="glass-sheet">
+          <div className="info-row items-start">
+            <div>
+              <p className="section-kicker">{AI_ENGINE_LABEL}</p>
+              <h2 className="section-title mt-2">Today's recommendation</h2>
+            </div>
+            <div className="glass-card-compact ai-engine-badge px-3 py-2 text-xs text-[var(--text-secondary)]">AI</div>
+          </div>
+
+          <div className="mt-4 space-y-2">
+            <div className="glass-card-compact text-sm text-[var(--text-secondary)]">
+              <span className="font-medium text-[var(--text-primary)]">Recovery {recovery.score}%</span> — {recovery.optimalIntensity}
+            </div>
+            <div className="glass-card-compact text-sm text-[var(--text-secondary)]">
+              <span className="font-medium text-[var(--text-primary)]">Stopwatch:</span> {modeRec.stopwatchReason}
+            </div>
+            <div className="glass-card-compact text-sm text-[var(--text-secondary)]">
+              <span className="font-medium text-[var(--text-primary)]">Breathwork:</span> {modeRec.breathworkReason}
+            </div>
+            <div className="glass-card-compact text-sm text-[var(--text-secondary)]">
+              <span className="font-medium text-[var(--text-primary)]">Try {breathSuggestion.protocolLabel}:</span> {breathSuggestion.reason}
+            </div>
           </div>
         </article>
 

@@ -149,8 +149,8 @@ function App() {
     [logs],
   )
   const insights = useMemo(
-    () => buildInsightSnapshot({ health, telemetry, logs }),
-    [health, logs, telemetry],
+    () => buildInsightSnapshot({ health, telemetry, logs, progression }),
+    [health, logs, progression, telemetry],
   )
   const recommendedPreset = useMemo(
     () => buildRecommendedSessionPreset({ health, telemetry, logs, onboardingProfile }),
@@ -877,6 +877,8 @@ function App() {
                   allStopwatchModes={STOPWATCH_MODES}
                   allBreathworkModes={BREATHWORK_MODES}
                   progression={progression}
+                  health={health}
+                  logs={logs}
                   onBack={() => setCurrentView('dashboard')}
                   onChangeMode={handleChangePresetMode}
                   onUseRecommended={handleUseRecommendedPreset}

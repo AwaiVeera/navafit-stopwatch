@@ -1168,6 +1168,14 @@ body {
   border-radius: 0.9rem;
 }
 
+.ai-engine-badge {
+  background:
+    linear-gradient(135deg, rgb(229 237 226 / 0.95) 0%, rgb(199 213 193 / 0.85) 100%);
+  border: 1px solid rgb(76 103 84 / 0.2);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+}
+
 .stopwatch-rest-overlay {
   display: flex;
   flex-direction: column;

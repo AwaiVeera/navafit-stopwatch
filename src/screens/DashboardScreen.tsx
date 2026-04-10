@@ -252,8 +252,8 @@ export function DashboardScreen({
                 {insights.engineLabel} · {insights.generatedAtLabel}
               </p>
             </div>
-            <div className="glass-card-compact px-3 py-2 text-xs text-[var(--text-secondary)]">
-              Scaffold
+            <div className="glass-card-compact ai-engine-badge px-3 py-2 text-xs text-[var(--text-secondary)]">
+              AI
             </div>
           </div>
 

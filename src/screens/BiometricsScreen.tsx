@@ -166,8 +166,8 @@ export function BiometricsScreen({ health, insights, onBack }: BiometricsScreenP
               <p className="title-font text-[1.2rem] font-medium text-[var(--text-primary)]">Recovery Guidance</p>
               <p className="support-copy mt-1">{insights.engineLabel} · {insights.generatedAtLabel}</p>
             </div>
-            <div className="glass-card-compact px-3 py-2 text-xs text-[var(--text-secondary)]">
-              Scaffold
+            <div className="glass-card-compact ai-engine-badge px-3 py-2 text-xs text-[var(--text-secondary)]">
+              AI
             </div>
           </div>
 
