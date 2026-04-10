@@ -73,12 +73,12 @@ const INITIAL_PROGRESSION: TrainingProgression = {
 }
 
 const initialHealth: HealthMetrics = {
-  heartRate: 132,
-  readiness: 78,
-  stamina: 71,
-  breathPerMinute: 16,
-  endurance: 66,
-  stressLevel: 39,
+  heartRate: 0,
+  readiness: 0,
+  stamina: 0,
+  breathPerMinute: 0,
+  endurance: 0,
+  stressLevel: 0,
 }
 
 const initialLogs: WorkoutLog[] = []

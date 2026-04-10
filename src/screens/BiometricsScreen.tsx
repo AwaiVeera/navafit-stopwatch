@@ -117,7 +117,7 @@ export function BiometricsScreen({ health, insights, onBack }: BiometricsScreenP
           <div className="handshake-head">
             <div className="handshake-head-copy">
               <p className="title-font text-[1.2rem] font-medium text-[var(--text-primary)]">Hardware Handshake</p>
-              <p className="support-copy mt-1">Simulated Apple Watch or Garmin pairing sequence.</p>
+              <p className="support-copy mt-1">Apple Watch or Garmin pairing sequence.</p>
             </div>
             <button
               type="button"

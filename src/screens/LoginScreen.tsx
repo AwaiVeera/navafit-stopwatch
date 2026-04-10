@@ -67,7 +67,7 @@ export function LoginScreen({
           <div className="login-hero-copy">
             <p className="section-kicker">NavaFit Alignment</p>
             <h1 className="section-title mt-3">Tactical Flowmentum</h1>
-            <p className="brand-font mt-2 text-[1.2rem] text-[var(--text-secondary)]">NavaLap</p>
+            <p className="brand-font mt-2 text-[1.2rem] text-[var(--text-secondary)]">NavaFit</p>
           </div>
 
           <div className="login-hero-logo-wrap">
@@ -84,7 +84,7 @@ export function LoginScreen({
 
             {showFallbackHero && (
               <div className="hero-logo-panel hero-logo-placeholder">
-                <p className="brand-font text-[2.4rem] tracking-[0.08em] text-[var(--text-primary)]">NavaLap</p>
+                <p className="brand-font text-[2.4rem] tracking-[0.08em] text-[var(--text-primary)]">NavaFit</p>
               </div>
             )}
           </div>

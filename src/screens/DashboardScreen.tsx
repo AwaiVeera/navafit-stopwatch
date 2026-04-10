@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 
 import type {
   HealthMetrics,
@@ -46,7 +46,7 @@ export function DashboardScreen({
   const dashboardInsights = insights.items.filter((item) => item.domain !== 'recovery')
   const guidanceRef = useRef<HTMLElement | null>(null)
   const sessionsRef = useRef<HTMLElement | null>(null)
-  const chartConfig = BODY_REPORT_CHARTS[reportRange]
+  const chartConfig = useMemo(() => buildChartFromLogs(logs, reportRange), [logs, reportRange])
 
   const jumpToSection = (element: HTMLElement | null) => {
     element?.scrollIntoView({ behavior: 'smooth', block: 'start' })
@@ -403,17 +403,46 @@ function ArrowUpRightIcon() {
 
 type ReportRange = 'week' | 'month' | 'year'
 
-const BODY_REPORT_CHARTS: Record<ReportRange, { summary: string; bars: number[] }> = {
-  week: {
-    summary: 'Current 7-day focus',
-    bars: [32, 38, 41, 48, 52, 58, 61, 66, 62, 57, 60, 64, 69, 65, 59, 56, 54, 58, 63, 60, 57, 55],
-  },
-  month: {
-    summary: 'Current 30-day trend',
-    bars: [22, 28, 35, 41, 53, 63, 58, 72, 68, 75, 62, 57, 64, 70, 61, 66, 58, 49, 55, 63, 59, 60],
-  },
-  year: {
-    summary: 'Long-range baseline',
-    bars: [42, 45, 47, 50, 52, 56, 59, 61, 63, 66, 68, 71, 69, 67, 65, 64, 62, 60, 59, 58, 57, 56],
-  },
+const BAR_COUNT = 22
+
+const RANGE_CONFIG: Record<ReportRange, { label: string; days: number }> = {
+  week: { label: 'Current 7-day focus', days: 7 },
+  month: { label: 'Current 30-day trend', days: 30 },
+  year: { label: 'Long-range baseline', days: 365 },
+}
+
+function buildChartFromLogs(
+  logs: WorkoutLog[],
+  range: ReportRange,
+): { summary: string; bars: number[] } {
+  const config = RANGE_CONFIG[range]
+  const now = Date.now()
+  const msPerDay = 86_400_000
+  const windowStart = now - config.days * msPerDay
+  const bucketSize = config.days / BAR_COUNT
+
+  const relevantLogs = logs.filter((log) => {
+    const ts = new Date(log.startedAt ?? log.date).getTime()
+    return ts >= windowStart && ts <= now
+  })
+
+  if (relevantLogs.length === 0) {
+    return { summary: config.label, bars: Array.from({ length: BAR_COUNT }, () => 4) }
+  }
+
+  const buckets = Array.from({ length: BAR_COUNT }, () => 0)
+
+  for (const log of relevantLogs) {
+    const ts = new Date(log.startedAt ?? log.date).getTime()
+    const dayOffset = (ts - windowStart) / msPerDay
+    const bucketIndex = Math.min(BAR_COUNT - 1, Math.floor(dayOffset / bucketSize))
+    buckets[bucketIndex] += log.durationMinutes
+  }
+
+  const maxMinutes = Math.max(...buckets, 1)
+
+  return {
+    summary: config.label,
+    bars: buckets.map((minutes) => Math.max(4, Math.round((minutes / maxMinutes) * 100))),
+  }
 }
