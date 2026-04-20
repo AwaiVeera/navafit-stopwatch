@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
+import { playAudioCue, primeAudioCues } from '../services/audio-cues'
 import { hapticLap, hapticStartPause } from '../services/haptics'
 import { computeLapSplits, formatStopwatch } from '../services/stopwatch'
 import type { SessionPreset, SessionSavePayload, StopwatchModeConfig, WeatherSnapshot } from '../types'
@@ -88,6 +89,7 @@ export function StopwatchScreen({
 
       if (elapsed >= lapDurationMs) {
         hapticLap()
+        playAudioCue('lap')
         carriedElapsedRef.current += lapDurationMs
         setLapElapsedMs(0)
         setLaps((prev) => [carriedElapsedRef.current, ...prev])
@@ -96,11 +98,13 @@ export function StopwatchScreen({
         if (nextLapIndex >= stopwatchMode.lapCount) {
           setAutoLapPhase('complete')
           setIsRunning(false)
+          playAudioCue('complete')
           return
         }
 
         setCurrentLapIndex(nextLapIndex)
         setAutoLapPhase('rest')
+        playAudioCue('interval-start')
         return
       }
 
@@ -130,6 +134,7 @@ export function StopwatchScreen({
         window.clearInterval(tickInterval)
         restTimerRef.current = null
         setAutoLapPhase('lap')
+        playAudioCue('interval-end')
       }
     }, 100)
 
@@ -230,6 +235,7 @@ export function StopwatchScreen({
   }
 
   const handleStartPause = () => {
+    primeAudioCues()
     hapticStartPause()
 
     if (isAutoLap) {
@@ -238,6 +244,7 @@ export function StopwatchScreen({
         if (!sessionStartedAtRef.current) sessionStartedAtRef.current = new Date().toISOString()
         setIsRunning(true)
         setAutoLapPhase('lap')
+        playAudioCue('start')
       }
       return
     }
@@ -249,12 +256,14 @@ export function StopwatchScreen({
       }
       setElapsedMs(carriedElapsedRef.current)
       setIsRunning(false)
+      playAudioCue('pause')
       return
     }
 
     if (!sessionStartedAtRef.current) sessionStartedAtRef.current = new Date().toISOString()
     runningStartRef.current = performance.now()
     setIsRunning(true)
+    playAudioCue('start')
   }
 
   const handleBack = () => {
@@ -374,6 +383,7 @@ export function StopwatchScreen({
                 className="secondary-btn"
                 onClick={() => {
                   hapticLap()
+                  playAudioCue('lap')
                   setLaps((previous) => [elapsedMs, ...previous])
                 }}
                 disabled={!isRunning}

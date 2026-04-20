@@ -1,6 +1,15 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
+import type { AudioCue } from '../services/audio-cues'
+import { playAudioCue, primeAudioCues } from '../services/audio-cues'
 import type { BreathProtocol, BreathworkMode, HealthMetrics, SessionPreset } from '../types'
+
+function phaseCueForName(name: string): AudioCue {
+  const normalised = name.toLowerCase()
+  if (normalised.includes('inhale') || normalised.includes('deep breath')) return 'inhale'
+  if (normalised.includes('hold') || normalised.includes('pause')) return 'hold'
+  return 'exhale'
+}
 
 interface BreathScreenProps {
   health: HealthMetrics
@@ -65,6 +74,13 @@ function NoviceBreathScreen({
         ? 'breath-hold'
         : 'breath-exhale'
 
+  const previousPhaseRef = useRef<string>(phaseLabel)
+  useEffect(() => {
+    if (previousPhaseRef.current === phaseLabel) return
+    previousPhaseRef.current = phaseLabel
+    playAudioCue(phaseCueForName(phaseLabel))
+  }, [phaseLabel])
+
   const breathCue = useMemo(() => {
     if (health.stressLevel > 55 || health.breathPerMinute > 18) {
       return 'Use a slower exhale and stay here until your breath rate settles.'
@@ -84,6 +100,7 @@ function NoviceBreathScreen({
           className="round-icon-btn"
           aria-label="Restart breath cycle"
           onClick={() => {
+            primeAudioCues()
             setBreathSecond(0)
             setManualPhase('Inhale')
           }}
@@ -104,14 +121,20 @@ function NoviceBreathScreen({
             <button
               type="button"
               className={`secondary-btn ${breathMode === 'guided' ? 'primary-btn-strong' : ''}`}
-              onClick={() => setBreathMode('guided')}
+              onClick={() => {
+                primeAudioCues()
+                setBreathMode('guided')
+              }}
             >
               Guided
             </button>
             <button
               type="button"
               className={`secondary-btn ${breathMode === 'manual' ? 'primary-btn-strong' : ''}`}
-              onClick={() => setBreathMode('manual')}
+              onClick={() => {
+                primeAudioCues()
+                setBreathMode('manual')
+              }}
             >
               Manual
             </button>
@@ -145,21 +168,30 @@ function NoviceBreathScreen({
               <button
                 type="button"
                 className={`secondary-btn ${phaseLabel === 'Inhale' ? 'primary-btn-strong' : ''}`}
-                onClick={() => setManualPhase('Inhale')}
+                onClick={() => {
+                  primeAudioCues()
+                  setManualPhase('Inhale')
+                }}
               >
                 Inhale
               </button>
               <button
                 type="button"
                 className={`secondary-btn ${phaseLabel === 'Hold' ? 'primary-btn-strong' : ''}`}
-                onClick={() => setManualPhase('Hold')}
+                onClick={() => {
+                  primeAudioCues()
+                  setManualPhase('Hold')
+                }}
               >
                 Hold
               </button>
               <button
                 type="button"
                 className={`secondary-btn ${phaseLabel === 'Exhale' ? 'primary-btn-strong' : ''}`}
-                onClick={() => setManualPhase('Exhale')}
+                onClick={() => {
+                  primeAudioCues()
+                  setManualPhase('Exhale')
+                }}
               >
                 Exhale
               </button>
@@ -254,7 +286,26 @@ function ProtocolBreathScreen({
         ? 'breath-hold'
         : 'breath-exhale'
 
+  const previousPhaseKeyRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (!isActive || !phase) {
+      previousPhaseKeyRef.current = null
+      return
+    }
+    const key = `${currentRound}-${currentPhaseIndex}`
+    if (previousPhaseKeyRef.current === key) return
+    previousPhaseKeyRef.current = key
+    playAudioCue(phaseCueForName(phase.name))
+  }, [isActive, phase, currentPhaseIndex, currentRound])
+
+  useEffect(() => {
+    if (isComplete) {
+      playAudioCue('complete')
+    }
+  }, [isComplete])
+
   const handleStart = () => {
+    primeAudioCues()
     setCurrentPhaseIndex(0)
     setPhaseElapsedMs(0)
     setCurrentRound(1)

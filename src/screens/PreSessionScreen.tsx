@@ -1,3 +1,5 @@
+import { useState } from 'react'
+
 import type {
   BreathworkMode,
   HealthMetrics,
@@ -14,6 +16,12 @@ import {
   recommendTrainingModes,
   suggestBreathProtocol,
 } from '../services/ai-engine'
+import {
+  isAudioCuesEnabled,
+  playAudioCue,
+  primeAudioCues,
+  setAudioCuesEnabled,
+} from '../services/audio-cues'
 
 const UNLOCK_THRESHOLD = 30
 
@@ -98,6 +106,16 @@ export function PreSessionScreen({
   const modeRec = recommendTrainingModes(progression, health, logs)
   const recovery = predictRecovery(health, logs)
   const breathSuggestion = suggestBreathProtocol(health)
+  const [audioEnabled, setAudioEnabled] = useState<boolean>(() => isAudioCuesEnabled())
+
+  const handleToggleAudio = (nextEnabled: boolean) => {
+    primeAudioCues()
+    setAudioCuesEnabled(nextEnabled)
+    setAudioEnabled(nextEnabled)
+    if (nextEnabled) {
+      playAudioCue('start')
+    }
+  }
 
   return (
     <section className="screen-shell">
@@ -131,6 +149,33 @@ export function PreSessionScreen({
               onClick={() => onChangeMode('auto_apply')}
             >
               Auto Apply
+            </button>
+          </div>
+
+          <div className="info-row mt-5 items-start">
+            <div>
+              <p className="title-font text-[1.05rem] font-medium text-[var(--text-primary)]">Audio Alerts</p>
+              <p className="support-copy mt-1">
+                Tone cues for lap starts, rest intervals, breath phases, and session completion.
+              </p>
+            </div>
+          </div>
+          <div className="soft-toggle mt-3 w-full justify-between" role="group" aria-label="Audio Alerts">
+            <button
+              type="button"
+              className={audioEnabled ? 'is-active' : ''}
+              onClick={() => handleToggleAudio(true)}
+              aria-pressed={audioEnabled}
+            >
+              On
+            </button>
+            <button
+              type="button"
+              className={!audioEnabled ? 'is-active' : ''}
+              onClick={() => handleToggleAudio(false)}
+              aria-pressed={!audioEnabled}
+            >
+              Off
             </button>
           </div>
         </article>
