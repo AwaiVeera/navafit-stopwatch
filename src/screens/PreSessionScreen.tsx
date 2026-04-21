@@ -181,7 +181,7 @@ export function PreSessionScreen({
         </article>
 
         {/* AI Recommendation */}
-        <article className="glass-sheet">
+        <article className="glass-sheet cinema-surface">
           <div className="info-row items-start">
             <div>
               <p className="section-kicker">{AI_ENGINE_LABEL}</p>
@@ -207,7 +207,7 @@ export function PreSessionScreen({
         </article>
 
         {/* Stopwatch mode picker */}
-        <article className="glass-sheet">
+        <article className="glass-sheet cinema-surface">
           <p className="section-kicker">Stopwatch Training Mode</p>
           <h2 className="section-title mt-2">Choose your level</h2>
 
@@ -244,7 +244,7 @@ export function PreSessionScreen({
         </article>
 
         {/* Breathwork mode picker */}
-        <article className="glass-sheet">
+        <article className="glass-sheet cinema-surface">
           <p className="section-kicker">Breathwork Training Mode</p>
           <h2 className="section-title mt-2">Choose your level</h2>
 
@@ -328,12 +328,12 @@ export function PreSessionScreen({
           </div>
 
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            <div className="glass-card">
+            <div className="glass-card cinema-surface cinema-surface--sub">
               <p className="label-text">Stopwatch target</p>
               <p className="metric-number-soft mt-3">{draftPreset.targetMinutes}</p>
               <p className="mt-2 text-sm text-[var(--text-muted)]">{draftPreset.title}</p>
             </div>
-            <div className="glass-card">
+            <div className="glass-card cinema-surface cinema-surface--sub">
               <p className="label-text">Breath cadence</p>
               <p className="metric-number-soft mt-3">{draftPreset.breathPreset.label}</p>
               <p className="mt-2 text-sm text-[var(--text-muted)]">

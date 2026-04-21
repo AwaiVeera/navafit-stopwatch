@@ -78,7 +78,7 @@ export function BiometricsScreen({ health, insights, onBack }: BiometricsScreenP
       </div>
 
       <div className="content-stack space-y-4">
-        <section className="hero-surface hero-surface-recovery">
+        <section className="hero-surface hero-surface-recovery cinema-surface cinema-surface--hero">
           <div className="recovery-hero-head">
             <div className="recovery-hero-copy">
               <p className="section-kicker">Recovery Protocol</p>
@@ -92,7 +92,7 @@ export function BiometricsScreen({ health, insights, onBack }: BiometricsScreenP
               <div className="body-figure" />
             </div>
 
-            <article className="glass-sheet recovery-body-report">
+            <article className="glass-sheet recovery-body-report cinema-surface">
               <div className="info-row items-start">
                 <div>
                   <p className="title-font text-[1.4rem] font-medium text-[var(--text-primary)]">Body Report</p>
@@ -160,7 +160,7 @@ export function BiometricsScreen({ health, insights, onBack }: BiometricsScreenP
           </div>
         </article>
 
-        <article ref={guidanceRef} className="glass-sheet biometrics-card">
+        <article ref={guidanceRef} className="glass-sheet biometrics-card cinema-surface">
           <div className="info-row items-start">
             <div>
               <p className="title-font text-[1.2rem] font-medium text-[var(--text-primary)]">Recovery Guidance</p>
@@ -172,7 +172,7 @@ export function BiometricsScreen({ health, insights, onBack }: BiometricsScreenP
           </div>
 
           <div className="mt-4 space-y-3">
-            <div className="glass-card">
+            <div className="glass-card cinema-surface cinema-surface--sub">
               <div className="info-row">
                 <p className="title-font text-[1.05rem] font-medium text-[var(--text-primary)]">
                   {recoveryInsight?.title ?? 'Recovery bias recommended'}
@@ -191,11 +191,11 @@ export function BiometricsScreen({ health, insights, onBack }: BiometricsScreenP
             </div>
 
             <div className="metric-grid">
-              <div className="glass-card">
+              <div className="glass-card cinema-surface cinema-surface--sub">
                 <p className="label-text">Macros</p>
                 <p className="mt-3 text-sm leading-relaxed text-[var(--text-secondary)]">{recovery.macroHint}</p>
               </div>
-              <div className="glass-card">
+              <div className="glass-card cinema-surface cinema-surface--sub">
                 <p className="label-text">Meditation</p>
                 <p className="mt-3 text-sm leading-relaxed text-[var(--text-secondary)]">12-18 min evening protocol.</p>
               </div>
@@ -203,7 +203,7 @@ export function BiometricsScreen({ health, insights, onBack }: BiometricsScreenP
           </div>
 
           {recovery.hydrationAlert && (
-            <div className="glass-card mt-4 border-[rgb(255_255_255/0.14)] bg-white/10">
+            <div className="glass-card cinema-surface cinema-surface--sub mt-4 border-[rgb(255_255_255/0.14)] bg-white/10">
               <p className="label-text">Hydration Alert</p>
               <p className="mt-2 text-sm text-[var(--text-primary)]">Drink water with electrolytes before the next recovery round.</p>
             </div>

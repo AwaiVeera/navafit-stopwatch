@@ -74,7 +74,7 @@ export function DashboardScreen({
       </div>
 
       <div className="content-stack space-y-4">
-        <section className="hero-surface hero-surface-dashboard dashboard-hero-shell animate-hero-pulse">
+        <section className="hero-surface hero-surface-dashboard dashboard-hero-shell animate-hero-pulse cinema-surface cinema-surface--hero">
           <div className="hero-dashboard-head">
             <div>
               <p className="section-kicker">Connected Core</p>
@@ -100,7 +100,7 @@ export function DashboardScreen({
           </div>
         </section>
 
-        <section className="glass-sheet dashboard-health-sheet">
+        <section className="glass-sheet dashboard-health-sheet cinema-surface">
           <div className="info-row">
             <div>
               <p className="title-font text-[1.55rem] font-medium text-[var(--text-primary)]">Health Check</p>
@@ -134,7 +134,7 @@ export function DashboardScreen({
           </div>
         </section>
 
-        <section className="glass-sheet dashboard-next-session">
+        <section className="glass-sheet dashboard-next-session cinema-surface">
           <div className="info-row">
             <div>
               <p className="label-text">Account</p>
@@ -175,7 +175,7 @@ export function DashboardScreen({
           </button>
         </section>
 
-        <section className="glass-sheet space-y-4 dashboard-report-sheet">
+        <section className="glass-sheet space-y-4 dashboard-report-sheet cinema-surface">
           <div className="info-row">
             <div>
               <p className="title-font text-[1.45rem] font-medium text-[var(--text-primary)]">Body Report</p>
@@ -217,13 +217,13 @@ export function DashboardScreen({
           </div>
 
           <div className="metric-grid">
-            <div className="glass-card dashboard-feature-tile">
+            <div className="glass-card dashboard-feature-tile cinema-surface cinema-surface--tile">
               <div className="tile-media tile-media-readiness" aria-hidden />
               <p className="label-text">Readiness</p>
               <p className="metric-number-soft mt-3">{health.readiness}%</p>
               <p className="mt-2 text-sm text-[var(--text-muted)]">Stable baseline for today</p>
             </div>
-            <div className="glass-card dashboard-feature-tile">
+            <div className="glass-card dashboard-feature-tile cinema-surface cinema-surface--tile">
               <div className="tile-media tile-media-breath" aria-hidden />
               <p className="label-text">Breath</p>
               <p className="metric-number-soft mt-3">{health.breathPerMinute}</p>
@@ -244,7 +244,7 @@ export function DashboardScreen({
           </div>
         </section>
 
-        <section ref={guidanceRef} className="glass-sheet">
+        <section ref={guidanceRef} className="glass-sheet cinema-surface">
           <div className="info-row">
             <div>
               <p className="title-font text-[1.45rem] font-medium text-[var(--text-primary)]">AI Guidance</p>
@@ -264,7 +264,7 @@ export function DashboardScreen({
           </div>
         </section>
 
-        <section ref={sessionsRef} className="glass-sheet">
+        <section ref={sessionsRef} className="glass-sheet cinema-surface">
           <div className="info-row">
             <div>
               <p className="title-font text-[1.45rem] font-medium text-[var(--text-primary)]">Recent Sessions</p>
@@ -283,7 +283,7 @@ export function DashboardScreen({
               </div>
             ) : (
               logs.map((log) => (
-                <div key={log.id} className="glass-card session-log-card">
+                <div key={log.id} className="glass-card session-log-card cinema-surface cinema-surface--sub">
                   <div className="info-row">
                     <div>
                       <p className="title-font text-[1.05rem] font-medium text-[var(--text-primary)]">{log.title}</p>
@@ -314,7 +314,7 @@ function InsightCard({
   actionLabel: string
 }) {
   return (
-    <div className="glass-card dashboard-insight-card">
+    <div className="glass-card dashboard-insight-card cinema-surface cinema-surface--sub">
       <div className="info-row">
         <p className="title-font text-[1.05rem] font-medium text-[var(--text-primary)]">{title}</p>
         <span className="text-xs text-[var(--accent-primary)]">{actionLabel}</span>

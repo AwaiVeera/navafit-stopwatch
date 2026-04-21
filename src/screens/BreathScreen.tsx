@@ -149,15 +149,15 @@ function NoviceBreathScreen({
           </div>
 
           <div className="mt-6 grid grid-cols-3 gap-3 text-center">
-            <div className="glass-card-compact breath-phase-tile">
+            <div className="glass-card-compact breath-phase-tile cinema-surface cinema-surface--sub">
               <p className="label-text">Inhale</p>
               <p className="mt-2 text-[1.05rem] text-[var(--text-primary)]">{sessionPreset.breathPreset.inhaleSeconds}s</p>
             </div>
-            <div className="glass-card-compact breath-phase-tile">
+            <div className="glass-card-compact breath-phase-tile cinema-surface cinema-surface--sub">
               <p className="label-text">Hold</p>
               <p className="mt-2 text-[1.05rem] text-[var(--text-primary)]">{sessionPreset.breathPreset.holdSeconds}s</p>
             </div>
-            <div className="glass-card-compact breath-phase-tile">
+            <div className="glass-card-compact breath-phase-tile cinema-surface cinema-surface--sub">
               <p className="label-text">Exhale</p>
               <p className="mt-2 text-[1.05rem] text-[var(--text-primary)]">{sessionPreset.breathPreset.exhaleSeconds}s</p>
             </div>
@@ -199,7 +199,7 @@ function NoviceBreathScreen({
           ) : null}
         </article>
 
-        <article className="glass-sheet breath-marker-sheet">
+        <article className="glass-sheet breath-marker-sheet cinema-surface">
           <div className="info-row">
             <div>
               <p className="title-font text-[1.35rem] font-medium text-[var(--text-primary)]">Breath Markers</p>
@@ -332,7 +332,7 @@ function ProtocolBreathScreen({
         </div>
 
         <div className="content-stack space-y-4">
-          <article className="glass-sheet">
+          <article className="glass-sheet cinema-surface">
             <p className="section-kicker">Breath Cadence</p>
             <h2 className="section-title mt-2">{breathworkMode.label} Breathwork</h2>
             <p className="support-copy mt-2">Choose a protocol to begin your guided breathing session.</p>
@@ -362,7 +362,7 @@ function ProtocolBreathScreen({
             </button>
           ))}
 
-          <article className="glass-sheet breath-marker-sheet">
+          <article className="glass-sheet breath-marker-sheet cinema-surface">
             <div className="metric-chip-grid mt-2">
               <MetricChip label="Heart Rate" value={`${health.heartRate} BPM`} />
               <MetricChip label="Breath Rate" value={`${health.breathPerMinute}/min`} />
@@ -463,7 +463,7 @@ function ProtocolBreathScreen({
           </div>
         </article>
 
-        <article className="glass-sheet breath-marker-sheet">
+        <article className="glass-sheet breath-marker-sheet cinema-surface">
           <div className="metric-chip-grid mt-2">
             <MetricChip label="Heart Rate" value={`${health.heartRate} BPM`} />
             <MetricChip label="Breath Rate" value={`${health.breathPerMinute}/min`} />

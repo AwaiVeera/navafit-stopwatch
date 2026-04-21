@@ -397,7 +397,7 @@ export function StopwatchScreen({
           )}
         </article>
 
-        <article ref={lapsRef} className="glass-sheet stopwatch-lap-sheet min-h-28">
+        <article ref={lapsRef} className="glass-sheet stopwatch-lap-sheet min-h-28 cinema-surface">
           <div className="info-row">
             <div>
               <p className="title-font text-[1.35rem] font-medium text-[var(--text-primary)]">Lap Memory</p>
