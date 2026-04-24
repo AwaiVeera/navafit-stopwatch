@@ -2350,3 +2350,130 @@ body {
 .settings-btn--shake {
   animation: settingsBtnShake 0.42s ease-in-out;
 }
+
+/* ═══════════════════════════════════════════════════
+   S2 LIGHT THEME — CTA screens (Pre-Session, Stopwatch, Breathwork)
+   ═══════════════════════════════════════════════════ */
+
+.screen-light {
+  --s2-bg:           #f0f5ec;
+  --s2-surface:      #ffffff;
+  --s2-card:         rgba(255, 255, 255, 0.94);
+  --s2-border:       rgba(74, 124, 89, 0.18);
+  --s2-accent:       #4a7c59;
+  --s2-accent-light: #d4e8d8;
+  --s2-accent-glow:  rgba(74, 124, 89, 0.15);
+  --s2-text:         #1a2e1e;
+  --s2-secondary:    #3a5842;
+  --s2-muted:        #6a8a6e;
+  --s2-dim:          #9ab09e;
+  background: linear-gradient(160deg, #f5f9f2 0%, #eaf3e6 55%, #e2eedc 100%);
+}
+
+.screen-light .glass-sheet,
+.screen-light article.glass-sheet,
+.screen-light .glass-card {
+  background: var(--s2-card);
+  border-color: var(--s2-border);
+  box-shadow: 0 8px 24px rgba(74, 124, 89, 0.10);
+}
+
+.screen-light .metric-chip {
+  background: var(--s2-card);
+  border-color: var(--s2-border);
+}
+
+.screen-light .section-kicker,
+.screen-light .label-text {
+  color: var(--s2-muted);
+}
+
+.screen-light .section-title,
+.screen-light .title-font {
+  color: var(--s2-text);
+}
+
+.screen-light .support-copy,
+.screen-light .metric-chip-label {
+  color: var(--s2-muted);
+}
+
+.screen-light .metric-number-soft,
+.screen-light .metric-chip-value,
+.screen-light .hud-font {
+  color: var(--s2-accent);
+}
+
+.screen-light .metric-unit {
+  color: var(--s2-secondary);
+}
+
+.screen-light .text-\[var\(--text-primary\)\] {
+  color: var(--s2-text);
+}
+
+.screen-light .text-\[var\(--text-secondary\)\] {
+  color: var(--s2-secondary);
+}
+
+.screen-light .text-\[var\(--text-muted\)\] {
+  color: var(--s2-muted);
+}
+
+.screen-light .primary-btn,
+.screen-light .primary-btn-strong {
+  background: var(--s2-accent);
+  color: #ffffff;
+  box-shadow: 0 4px 16px var(--s2-accent-glow);
+}
+
+.screen-light .secondary-btn {
+  background: var(--s2-accent-light);
+  color: var(--s2-accent);
+  border-color: var(--s2-border);
+}
+
+.screen-light .soft-progress {
+  background: var(--s2-accent-light);
+}
+
+.screen-light .soft-progress-fill {
+  background: var(--s2-accent);
+}
+
+.screen-light .timer-ring {
+  border-color: var(--s2-accent-light);
+  border-top-color: var(--s2-accent);
+}
+
+.screen-light .round-icon-btn,
+.screen-light .round-icon-btn-soft {
+  background: var(--s2-card);
+  border-color: var(--s2-border);
+  color: var(--s2-accent);
+}
+
+.screen-light .glass-card-compact,
+.screen-light .lap-memory-tile {
+  background: var(--s2-card);
+  border-color: var(--s2-border);
+}
+
+.screen-light .dashboard-status-chip {
+  background: var(--s2-accent-light);
+  color: var(--s2-accent);
+}
+
+.screen-light .soft-toggle {
+  background: var(--s2-accent-light);
+}
+
+.screen-light .soft-toggle button.is-active {
+  background: var(--s2-accent);
+  color: #fff;
+}
+
+.screen-light .stopwatch-timer-well {
+  background: linear-gradient(135deg, #f8fcf6 0%, #eef6ea 100%);
+  border: 1px solid var(--s2-border);
+}

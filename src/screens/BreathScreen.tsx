@@ -90,7 +90,7 @@ function NoviceBreathScreen({
   }, [health.breathPerMinute, health.stressLevel])
 
   return (
-    <section className="screen-shell">
+    <section className="screen-shell screen-light">
       <div className="top-chrome">
         <button type="button" className="round-icon-btn" onClick={onBack} aria-label="Back">
           <BackIcon />
@@ -323,7 +323,7 @@ function ProtocolBreathScreen({
 
   if (!selectedProtocol) {
     return (
-      <section className="screen-shell">
+      <section className="screen-shell screen-light">
         <div className="top-chrome">
           <button type="button" className="round-icon-btn" onClick={onBack} aria-label="Back">
             <BackIcon />
@@ -375,7 +375,7 @@ function ProtocolBreathScreen({
   }
 
   return (
-    <section className="screen-shell">
+    <section className="screen-shell screen-light">
       <div className="top-chrome">
         <button
           type="button"

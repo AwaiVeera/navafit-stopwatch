@@ -274,7 +274,7 @@ export function StopwatchScreen({
   const lapRemainingMs = isAutoLap ? Math.max(0, lapDurationMs - lapElapsedMs) : 0
 
   return (
-    <section className="screen-shell">
+    <section className="screen-shell screen-light">
       <div className="top-chrome">
         <button type="button" className="round-icon-btn" onClick={handleBack} aria-label="Back">
           <BackIcon />
