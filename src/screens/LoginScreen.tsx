@@ -14,8 +14,7 @@ interface LoginScreenProps {
   isSupabaseConfigured: boolean
 }
 
-const PRIMARY_HERO_SOURCE = '/Font.png'
-const FALLBACK_HERO_SOURCE = '/font-fallback.svg'
+const LOGO_SRC = '/Font.png'
 
 export function LoginScreen({
   onEmailAuth,
@@ -29,189 +28,165 @@ export function LoginScreen({
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [mode, setMode] = useState<EmailAuthMode>('sign-in')
-  const [showFallbackHero, setShowFallbackHero] = useState(false)
-  const [heroSource, setHeroSource] = useState(PRIMARY_HERO_SOURCE)
+  const [logoFailed, setLogoFailed] = useState(false)
+
   const isFormDisabled = isAuthBusy || isBootstrapping || !isSupabaseConfigured
   const statusText = authError || authMessage || (isBootstrapping ? 'Checking your saved session...' : '')
+
   const submitLabel = isBootstrapping
     ? 'Checking session...'
     : isAuthBusy
-      ? mode === 'sign-in'
-        ? 'Signing in...'
-        : 'Creating account...'
-      : mode === 'sign-in'
-        ? 'Sign In'
-        : 'Create Account'
+      ? mode === 'sign-in' ? 'Signing in...' : 'Creating account...'
+      : mode === 'sign-in' ? 'Sign In' : 'Create Account'
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     await onEmailAuth({ email, password, mode })
   }
 
-  const handleHeroError = () => {
-    if (heroSource === PRIMARY_HERO_SOURCE) {
-      setHeroSource(FALLBACK_HERO_SOURCE)
-      return
-    }
-    setShowFallbackHero(true)
-  }
-
-  const handleSocialClick = async (provider: SocialAuthProvider) => {
-    await onSocialAuth(provider)
-  }
-
   return (
-    <section className="screen-shell login-screen justify-center">
-      <div className="content-stack my-auto space-y-3">
-        <section className="hero-surface hero-surface-login">
-          <div className="login-hero-copy">
-            <p className="section-kicker">NavaFit Alignment</p>
-            <h1 className="section-title mt-3">Tactical Flowmentum</h1>
-            <p className="brand-font mt-2 text-[1.2rem] text-[var(--text-secondary)]">NavaFit</p>
+    <div className="login-screen-dark min-h-screen">
+      <section className="screen-shell justify-center">
+        <div className="content-stack my-auto space-y-3">
+
+          {/* ── Hero panel ── */}
+          <div className="login-hero-panel">
+            {!logoFailed ? (
+              <img
+                src={LOGO_SRC}
+                alt="NavaFit logo"
+                className="login-hero-logo"
+                onError={() => setLogoFailed(true)}
+              />
+            ) : (
+              <div className="login-hero-logo flex items-center justify-center">
+                <span style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '2rem', fontWeight: 600, color: '#8a9a4a' }}>N</span>
+              </div>
+            )}
+            <p className="login-hero-brand">NavaFit</p>
+            <p className="login-hero-sub">Alignment System</p>
+            <p className="login-hero-tagline">Art Of Tactical Flowmentum</p>
           </div>
 
-          <div className="login-hero-logo-wrap">
-            {!showFallbackHero && (
-              <div className="hero-logo-panel">
-                <img
-                  src={heroSource}
-                  alt="NavaFit Alignment logo"
-                  className="hero-logo-image"
-                  onError={handleHeroError}
-                />
+          {/* ── Stat cards ── */}
+          <div className="login-stat-row">
+            <div className="login-stat-card">
+              <p className="login-stat-label">Discipline</p>
+              <p className="login-stat-value">Kalari · Gadah</p>
+            </div>
+            <div className="login-stat-card">
+              <p className="login-stat-label">Method</p>
+              <p className="login-stat-value">Breathwork</p>
+            </div>
+          </div>
+
+          {/* ── Auth form ── */}
+          <form onSubmit={handleSubmit} className="login-form-sheet">
+            {!isSupabaseConfigured && (
+              <div
+                className="rounded-xl border border-[rgba(157,109,109,0.35)] bg-[rgba(157,109,109,0.12)] p-3 text-left text-sm"
+                role="alert"
+              >
+                <p className="font-medium" style={{ color: '#e2e8d4' }}>Login is turned off in this build</p>
+                <p className="mt-2 text-[0.82rem]" style={{ color: '#7a8a60' }}>{getSupabaseSetupMessage()}</p>
               </div>
             )}
 
-            {showFallbackHero && (
-              <div className="hero-logo-panel hero-logo-placeholder">
-                <p className="brand-font text-[2.4rem] tracking-[0.08em] text-[var(--text-primary)]">NavaFit</p>
-              </div>
-            )}
-          </div>
-
-          <div className="login-hero-support glass-card">
-            <p className="support-copy text-center">
-              Art Of Tactical Flowmentum
-            </p>
-          </div>
-        </section>
-
-        <form onSubmit={handleSubmit} className="glass-sheet space-y-3">
-          {!isSupabaseConfigured ? (
-            <div
-              className="rounded-xl border border-[color-mix(in_srgb,var(--danger-soft)_45%,transparent)] bg-[color-mix(in_srgb,var(--danger-soft)_12%,transparent)] p-3 text-left text-sm"
-              role="alert"
-            >
-              <p className="title-font font-medium text-[var(--text-primary)]">Login is turned off in this build</p>
-              <p className="support-copy mt-2 text-[var(--text-secondary)]">{getSupabaseSetupMessage()}</p>
-              <p className="support-copy mt-2 text-[var(--text-secondary)]">
-                On your Mac: put those values in the file <span className="text-[var(--text-primary)]">.env.local</span> in
-                the project folder. Then run <span className="text-[var(--text-primary)]">npm run build</span>, then{' '}
-                <span className="text-[var(--text-primary)]">npm run cap:sync</span>, then install from Xcode again. The
-                buttons below stay disabled until a new build is on your phone.
-              </p>
-            </div>
-          ) : null}
-
-          <div>
-            <p className="label-text">Email access</p>
-            <div className="soft-toggle mt-2 w-full justify-between">
-              <button
-                type="button"
-                className={mode === 'sign-in' ? 'is-active' : ''}
-                onClick={() => setMode('sign-in')}
-                disabled={isAuthBusy || isBootstrapping}
-              >
-                Sign In
-              </button>
-              <button
-                type="button"
-                className={mode === 'sign-up' ? 'is-active' : ''}
-                onClick={() => setMode('sign-up')}
-                disabled={isAuthBusy || isBootstrapping}
-              >
-                Create Account
-              </button>
-            </div>
-            <p className="support-copy mt-3">
-              Use <span className="text-[var(--text-secondary)]">Create Account</span> for first-time signup. Supabase may ask
-              the user to confirm by email before the first sign-in.
-            </p>
-          </div>
-
-          <div>
-            <label className="label-text">Email</label>
-            <input
-              type="email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              required
-              className="matte-input mt-2"
-              placeholder="name@example.com"
-              autoComplete="email"
-              disabled={isFormDisabled}
-            />
-          </div>
-
-          <div>
-            <label className="label-text">Password</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              required
-              className="matte-input mt-2"
-              placeholder="••••••••"
-              autoComplete={mode === 'sign-in' ? 'current-password' : 'new-password'}
-              disabled={isFormDisabled}
-            />
-          </div>
-
-          <button type="submit" disabled={isFormDisabled} className="primary-btn primary-btn-strong mt-2 w-full justify-center">
-            {submitLabel}
-          </button>
-
-          {statusText ? (
-            <div
-              className={`glass-card-compact text-sm ${authError ? 'text-[var(--danger-soft)]' : 'text-[var(--text-secondary)]'}`}
-              aria-live="polite"
-            >
-              {statusText}
-            </div>
-          ) : null}
-        </form>
-
-        <div className="glass-sheet space-y-3">
-          <div className="info-row">
             <div>
-              <p className="title-font text-[1.2rem] font-medium text-[var(--text-primary)]">Continue with</p>
-              <p className="support-copy mt-1">Apple and Google route through Supabase OAuth.</p>
+              <p className="login-label">Access mode</p>
+              <div className="login-mode-toggle">
+                <button
+                  type="button"
+                  className={mode === 'sign-in' ? 'is-active' : ''}
+                  onClick={() => setMode('sign-in')}
+                  disabled={isAuthBusy || isBootstrapping}
+                >
+                  Sign In
+                </button>
+                <button
+                  type="button"
+                  className={mode === 'sign-up' ? 'is-active' : ''}
+                  onClick={() => setMode('sign-up')}
+                  disabled={isAuthBusy || isBootstrapping}
+                >
+                  Create Account
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <label className="login-label" htmlFor="login-email">Email</label>
+              <input
+                id="login-email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                className="login-input"
+                placeholder="name@example.com"
+                autoComplete="email"
+                disabled={isFormDisabled}
+              />
+            </div>
+
+            <div>
+              <label className="login-label" htmlFor="login-password">Password</label>
+              <input
+                id="login-password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                className="login-input"
+                placeholder="••••••••"
+                autoComplete={mode === 'sign-in' ? 'current-password' : 'new-password'}
+                disabled={isFormDisabled}
+              />
+            </div>
+
+            <button type="submit" disabled={isFormDisabled} className="login-cta-btn">
+              {submitLabel}
+            </button>
+
+            {statusText && (
+              <div
+                className={`login-status-card ${authError ? '' : ''}`}
+                style={{ color: authError ? '#c47a7a' : '#8a9a6a' }}
+                aria-live="polite"
+              >
+                {statusText}
+              </div>
+            )}
+          </form>
+
+          {/* ── SSO ── */}
+          <div className="login-form-sheet">
+            <p className="login-label">Continue with</p>
+            <div className="login-sso-row">
+              <button
+                type="button"
+                className="login-sso-btn"
+                onClick={() => void onSocialAuth('apple')}
+                disabled={isFormDisabled}
+              >
+                <AppleIcon />
+                Apple
+              </button>
+              <button
+                type="button"
+                className="login-sso-btn"
+                onClick={() => void onSocialAuth('google')}
+                disabled={isFormDisabled}
+              >
+                <GoogleIcon />
+                Google
+              </button>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <button
-              type="button"
-              className="sso-btn"
-              onClick={() => handleSocialClick('apple')}
-              disabled={isFormDisabled}
-            >
-              <AppleIcon />
-              Apple
-            </button>
-            <button
-              type="button"
-              className="sso-btn"
-              onClick={() => handleSocialClick('google')}
-              disabled={isFormDisabled}
-            >
-              <GoogleIcon />
-              Google
-            </button>
-          </div>
         </div>
-      </div>
-    </section>
+      </section>
+    </div>
   )
 }
 
