@@ -5,6 +5,7 @@ import type { Session } from '@supabase/supabase-js'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 
+import { AYScreen } from './screens/AYScreen'
 import { BreathScreen } from './screens/BreathScreen'
 import { ConsentScreen } from './screens/ConsentScreen'
 import { DashboardScreen } from './screens/DashboardScreen'
@@ -12,6 +13,7 @@ import { BiometricsScreen } from './screens/BiometricsScreen'
 import { LoginScreen } from './screens/LoginScreen'
 import { OnboardingScreen } from './screens/OnboardingScreen'
 import { PreSessionScreen } from './screens/PreSessionScreen'
+import { SettingsScreen } from './screens/SettingsScreen'
 import { StopwatchScreen } from './screens/StopwatchScreen'
 import {
   finalizeAuthFromUrl,
@@ -163,9 +165,11 @@ function App() {
   const navActiveView =
     currentView === 'pre-session'
       ? 'stopwatch'
-      : currentView === 'login' || currentView === 'onboarding' || currentView === 'consent'
-        ? 'dashboard'
-        : currentView
+      : currentView === 'biometrics'
+        ? 'settings'
+        : currentView === 'login' || currentView === 'onboarding' || currentView === 'consent'
+          ? 'dashboard'
+          : currentView
 
   const handleAuthRedirect = useCallback(async (url: string) => {
     if (!isAuthRedirectUrl(url)) {
@@ -790,6 +794,10 @@ function App() {
     setBreathworkLevel(level)
   }, [])
 
+  const handleDisconnectWatch = useCallback(() => {
+    setTelemetry((prev) => ({ ...prev, fitnessWatch: 'idle' as const }))
+  }, [])
+
   return (
     <div className="app-root relative overflow-hidden text-[var(--text-primary)]">
       <div className="pointer-events-none absolute inset-0 app-backdrop" />
@@ -858,14 +866,12 @@ function App() {
                   onSyncTelemetry={handleTelemetrySync}
                   totalMinutes={totalMinutes}
                   onOpenStopwatch={handleOpenPreSession}
-                  onOpenBiometrics={() => setCurrentView('biometrics')}
-                  accountEmail={accountEmail}
-                  onSignOut={handleSignOut}
-                  isSigningOut={isAuthBusy}
                   recommendedPreset={recommendedPreset}
                   presetMode={presetMode}
                 />
               )}
+
+              {currentView === 'ay' && <AYScreen />}
 
               {currentView === 'pre-session' && (
                 <PreSessionScreen
@@ -913,7 +919,24 @@ function App() {
                 <BiometricsScreen
                   health={health}
                   insights={insights}
-                  onBack={() => setCurrentView('dashboard')}
+                  onBack={() => setCurrentView('settings')}
+                />
+              )}
+
+              {currentView === 'settings' && (
+                <SettingsScreen
+                  accountEmail={accountEmail}
+                  onSignOut={handleSignOut}
+                  isSigningOut={isAuthBusy}
+                  health={health}
+                  insights={insights}
+                  watchStatus={telemetry.fitnessWatch}
+                  onDisconnectWatch={handleDisconnectWatch}
+                  isTelemetrySyncing={isTelemetrySyncing}
+                  onSyncTelemetry={handleTelemetrySync}
+                  consentRecord={consentRecord}
+                  onUpdateConsent={handleConsentSubmit}
+                  onOpenBiometrics={() => setCurrentView('biometrics')}
                 />
               )}
             </div>
@@ -932,16 +955,22 @@ function App() {
                 onClick={handleOpenPreSession}
               />
               <TabButton
+                label="AY"
+                active={navActiveView === 'ay'}
+                icon={<AYIcon />}
+                onClick={() => setCurrentView('ay')}
+              />
+              <TabButton
                 label="BreathWork"
                 active={navActiveView === 'breath'}
                 icon={<BreathIcon />}
                 onClick={() => setCurrentView('breath')}
               />
               <TabButton
-                label="Recovery"
-                active={navActiveView === 'biometrics'}
-                icon={<PulseIcon />}
-                onClick={() => setCurrentView('biometrics')}
+                label="Settings"
+                active={navActiveView === 'settings'}
+                icon={<GearIcon />}
+                onClick={() => setCurrentView('settings')}
               />
             </nav>
           </>
@@ -1022,11 +1051,20 @@ function ChronoIcon() {
   )
 }
 
-function PulseIcon() {
+function AYIcon() {
   return (
     <svg viewBox="0 0 20 20" aria-hidden className="h-4 w-4 fill-none stroke-current stroke-[1.6]">
-      <path d="M2.5 10h3.3l1.6-3.1 3.1 6.1 1.8-4H17.5" />
-      <path d="M10 17a7 7 0 1 0 0-14 7 7 0 0 0 0 14Z" />
+      <path d="M3 5.5h14M3 10h9M3 14.5h6" />
+      <circle cx="16" cy="14.5" r="2.5" />
+    </svg>
+  )
+}
+
+function GearIcon() {
+  return (
+    <svg viewBox="0 0 20 20" aria-hidden className="h-4 w-4 fill-none stroke-current stroke-[1.6]">
+      <circle cx="10" cy="10" r="2.5" />
+      <path d="M10 2v2M10 16v2M2 10h2M16 10h2M4.2 4.2l1.4 1.4M14.4 14.4l1.4 1.4M4.2 15.8l1.4-1.4M14.4 5.6l1.4-1.4" />
     </svg>
   )
 }
