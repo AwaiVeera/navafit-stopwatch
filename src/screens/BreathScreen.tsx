@@ -300,12 +300,13 @@ function ProtocolBreathScreen({
 
   useEffect(() => {
     if (isComplete) {
-      playAudioCue('complete')
+      playAudioCue('breath-complete')
     }
   }, [isComplete])
 
   const handleStart = () => {
     primeAudioCues()
+    playAudioCue('breath-start')
     setCurrentPhaseIndex(0)
     setPhaseElapsedMs(0)
     setCurrentRound(1)
