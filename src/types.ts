@@ -1,4 +1,4 @@
-export type ViewId = 'login' | 'onboarding' | 'consent' | 'dashboard' | 'pre-session' | 'stopwatch' | 'breath' | 'biometrics'
+export type ViewId = 'login' | 'onboarding' | 'consent' | 'dashboard' | 'pre-session' | 'stopwatch' | 'breath' | 'biometrics' | 'ay' | 'settings'
 export type EmailAuthMode = 'sign-in' | 'sign-up'
 export type SocialAuthProvider = 'apple' | 'google'
 export type WorkoutSource = 'app' | 'apple_health' | 'apple_watch' | 'garmin_connect'
