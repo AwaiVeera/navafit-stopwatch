@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from 'react'
 
+import { getDailyQuote } from '../services/quotes'
 import type {
   HealthMetrics,
   InsightSnapshot,
@@ -18,10 +19,6 @@ interface DashboardScreenProps {
   logs: WorkoutLog[]
   totalMinutes: number
   onOpenStopwatch: () => void
-  onOpenBiometrics: () => void
-  accountEmail: string
-  onSignOut: () => void
-  isSigningOut: boolean
   recommendedPreset: SessionPreset
   presetMode: PresetMode
 }
@@ -35,13 +32,10 @@ export function DashboardScreen({
   logs,
   totalMinutes,
   onOpenStopwatch,
-  onOpenBiometrics,
-  accountEmail,
-  onSignOut,
-  isSigningOut,
   recommendedPreset,
   presetMode,
 }: DashboardScreenProps) {
+  const dailyQuote = getDailyQuote()
   const [reportRange, setReportRange] = useState<ReportRange>('month')
   const dashboardInsights = insights.items.filter((item) => item.domain !== 'recovery')
   const guidanceRef = useRef<HTMLElement | null>(null)
@@ -74,6 +68,22 @@ export function DashboardScreen({
       </div>
 
       <div className="content-stack space-y-4">
+        {/* Daily motivational quote — large feature tile */}
+        <section className="glass-sheet dashboard-quote-tile cinema-surface">
+          <p className="label-text mb-3">Daily Wisdom</p>
+          <p className="dashboard-quote-text">"{dailyQuote.text}"</p>
+          <p className="dashboard-quote-source mt-3">— {dailyQuote.source}</p>
+        </section>
+
+        {/* Primary CTA — Begin Session */}
+        <button
+          type="button"
+          className="primary-btn primary-btn-strong w-full justify-center dashboard-begin-cta"
+          onClick={onOpenStopwatch}
+        >
+          Begin Session
+        </button>
+
         <section className="hero-surface hero-surface-dashboard dashboard-hero-shell animate-hero-pulse cinema-surface cinema-surface--hero">
           <div className="hero-dashboard-head">
             <div>
@@ -131,19 +141,6 @@ export function DashboardScreen({
               }
               unit={telemetry.weatherSnapshot.temperatureC === null ? '' : 'C'}
             />
-          </div>
-        </section>
-
-        <section className="glass-sheet dashboard-next-session cinema-surface">
-          <div className="info-row">
-            <div>
-              <p className="label-text">Account</p>
-              <p className="title-font mt-2 text-[1.15rem] font-medium text-[var(--text-primary)]">{accountEmail}</p>
-              <p className="support-copy mt-1">Supabase session is active on this device.</p>
-            </div>
-            <button type="button" className="secondary-btn" onClick={onSignOut} disabled={isSigningOut}>
-              {isSigningOut ? 'Signing out...' : 'Sign out'}
-            </button>
           </div>
         </section>
 
@@ -234,12 +231,6 @@ export function DashboardScreen({
               <p className="label-text">Primary Tool</p>
               <p className="title-font mt-3 text-[1.1rem] font-medium text-[var(--text-primary)]">Combat Stopwatch</p>
               <p className="mt-2 text-sm text-[var(--text-muted)]">Interval tracking and sets</p>
-            </button>
-            <button type="button" className="glass-card dashboard-feature-tile text-left" onClick={onOpenBiometrics}>
-              <div className="tile-media tile-media-recovery" aria-hidden />
-              <p className="label-text">Recovery Tool</p>
-              <p className="title-font mt-3 text-[1.1rem] font-medium text-[var(--text-primary)]">Biometrics</p>
-              <p className="mt-2 text-sm text-[var(--text-muted)]">Body report and recovery score</p>
             </button>
           </div>
         </section>
