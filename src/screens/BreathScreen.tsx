@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useEffect, useMemo, useRef, useState } from 'react'
 
 import type { AudioCue } from '../services/audio-cues'
 import { playAudioCue, primeAudioCues } from '../services/audio-cues'
+import { breathPhaseFeedback, successFeedback, tapFeedback } from '../utils/feedback'
 import type { BreathProtocol, BreathworkMode, HealthMetrics, SessionPreset } from '../types'
 
 function phaseCueForName(name: string): AudioCue {
@@ -11,6 +12,13 @@ function phaseCueForName(name: string): AudioCue {
   return 'exhale'
 }
 
+function phaseClassForName(name: string): 'breath-inhale' | 'breath-hold' | 'breath-exhale' {
+  const normalised = name.toLowerCase()
+  if (normalised.includes('inhale') || normalised.includes('deep breath')) return 'breath-inhale'
+  if (normalised.includes('hold') || normalised.includes('pause')) return 'breath-hold'
+  return 'breath-exhale'
+}
+
 interface BreathScreenProps {
   health: HealthMetrics
   sessionPreset: SessionPreset
@@ -18,7 +26,7 @@ interface BreathScreenProps {
   onBack: () => void
 }
 
-export function BreathScreen({ health, sessionPreset, breathworkMode, onBack }: BreathScreenProps) {
+function BreathScreenInner({ health, sessionPreset, breathworkMode, onBack }: BreathScreenProps) {
   const isNovice = breathworkMode.id === 'novice' || breathworkMode.protocols.length === 0
 
   if (isNovice) {
@@ -33,6 +41,8 @@ export function BreathScreen({ health, sessionPreset, breathworkMode, onBack }: 
     />
   )
 }
+
+export const BreathScreen = memo(BreathScreenInner)
 
 // --- Novice: original behavior preserved exactly ---
 
@@ -73,12 +83,31 @@ function NoviceBreathScreen({
       : phaseLabel === 'Hold'
         ? 'breath-hold'
         : 'breath-exhale'
+  const phaseDurationSeconds =
+    phaseLabel === 'Inhale'
+      ? sessionPreset.breathPreset.inhaleSeconds
+      : phaseLabel === 'Hold'
+        ? sessionPreset.breathPreset.holdSeconds
+        : sessionPreset.breathPreset.exhaleSeconds
+  const phaseElapsedSeconds = breathMode === 'guided'
+    ? phaseLabel === 'Inhale'
+      ? breathSecond
+      : phaseLabel === 'Hold'
+        ? breathSecond - inhaleBoundary
+        : breathSecond - holdBoundary
+    : 0
+  const phaseProgress =
+    breathMode === 'guided' && phaseDurationSeconds > 0
+      ? Math.min(phaseElapsedSeconds / phaseDurationSeconds, 1)
+      : 1
+  const phaseRemainingSeconds = Math.max(phaseDurationSeconds - phaseElapsedSeconds, 0)
 
   const previousPhaseRef = useRef<string>(phaseLabel)
   useEffect(() => {
     if (previousPhaseRef.current === phaseLabel) return
     previousPhaseRef.current = phaseLabel
     playAudioCue(phaseCueForName(phaseLabel))
+    breathPhaseFeedback(phaseLabel)
   }, [phaseLabel])
 
   const breathCue = useMemo(() => {
@@ -90,7 +119,7 @@ function NoviceBreathScreen({
   }, [health.breathPerMinute, health.stressLevel])
 
   return (
-    <section className="screen-shell screen-light">
+    <section className="screen-shell">
       <div className="top-chrome">
         <button type="button" className="round-icon-btn" onClick={onBack} aria-label="Back">
           <BackIcon />
@@ -100,9 +129,12 @@ function NoviceBreathScreen({
           className="round-icon-btn"
           aria-label="Restart breath cycle"
           onClick={() => {
+            tapFeedback()
             primeAudioCues()
             setBreathSecond(0)
             setManualPhase('Inhale')
+            playAudioCue('inhale')
+            breathPhaseFeedback('Inhale')
           }}
         >
           <BreathIcon />
@@ -124,6 +156,8 @@ function NoviceBreathScreen({
               onClick={() => {
                 primeAudioCues()
                 setBreathMode('guided')
+                playAudioCue(phaseCueForName(guidedPhaseLabel))
+                breathPhaseFeedback(guidedPhaseLabel)
               }}
             >
               Guided
@@ -134,18 +168,21 @@ function NoviceBreathScreen({
               onClick={() => {
                 primeAudioCues()
                 setBreathMode('manual')
+                playAudioCue(phaseCueForName(manualPhase))
+                breathPhaseFeedback(manualPhase)
               }}
             >
               Manual
             </button>
           </div>
 
-          <div className="card-media-strip card-media-strip-breath mt-4" aria-hidden />
-
           <div className="mt-8 grid place-items-center breath-orb-wrap">
-            <div className={`breath-orb breath-orb-reference ${phaseRingClass}`}>
-              <span className="hud-font text-sm text-[var(--text-secondary)]">{phaseLabel}</span>
-            </div>
+            <BreathCadenceRing
+              phaseLabel={phaseLabel}
+              progress={phaseProgress}
+              phaseClassName={phaseRingClass}
+              detailLabel={breathMode === 'guided' ? `${Math.ceil(phaseRemainingSeconds)}s` : `${phaseDurationSeconds}s`}
+            />
           </div>
 
           <div className="mt-6 grid grid-cols-3 gap-3 text-center">
@@ -171,6 +208,8 @@ function NoviceBreathScreen({
                 onClick={() => {
                   primeAudioCues()
                   setManualPhase('Inhale')
+                  playAudioCue('inhale')
+                  breathPhaseFeedback('Inhale')
                 }}
               >
                 Inhale
@@ -181,6 +220,8 @@ function NoviceBreathScreen({
                 onClick={() => {
                   primeAudioCues()
                   setManualPhase('Hold')
+                  playAudioCue('hold')
+                  breathPhaseFeedback('Hold')
                 }}
               >
                 Hold
@@ -191,6 +232,8 @@ function NoviceBreathScreen({
                 onClick={() => {
                   primeAudioCues()
                   setManualPhase('Exhale')
+                  playAudioCue('exhale')
+                  breathPhaseFeedback('Exhale')
                 }}
               >
                 Exhale
@@ -207,8 +250,6 @@ function NoviceBreathScreen({
             </div>
             <div className="dashboard-status-chip">{sessionPreset.breathPreset.label}</div>
           </div>
-
-          <div className="card-media-strip card-media-strip-breath-metrics mt-4" aria-hidden />
 
           <div className="metric-chip-grid mt-4">
             <MetricChip label="Heart Rate" value={`${health.heartRate} BPM`} />
@@ -279,12 +320,17 @@ function ProtocolBreathScreen({
     return () => window.clearInterval(tickInterval)
   }, [isActive, protocol, phase, phaseDurationMs, currentPhaseIndex, totalRounds, currentRound])
 
-  const phaseRingClass =
-    phase?.name.toLowerCase().includes('inhale')
-      ? 'breath-inhale'
-      : phase?.name.toLowerCase().includes('hold') || phase?.name.toLowerCase().includes('pause')
-        ? 'breath-hold'
-        : 'breath-exhale'
+  const phaseRingClass = phase ? phaseClassForName(phase.name) : 'breath-exhale'
+  const phaseProgress = isComplete
+    ? 1
+    : isActive && phaseDurationMs > 0
+      ? Math.min(phaseElapsedMs / phaseDurationMs, 1)
+      : 0
+  const phaseDetailLabel = isComplete
+    ? 'Done'
+    : phase
+      ? `${Math.max(1, Math.ceil(phaseRemainingMs / 1000))}s`
+      : '--'
 
   const previousPhaseKeyRef = useRef<string | null>(null)
   useEffect(() => {
@@ -296,15 +342,18 @@ function ProtocolBreathScreen({
     if (previousPhaseKeyRef.current === key) return
     previousPhaseKeyRef.current = key
     playAudioCue(phaseCueForName(phase.name))
+    breathPhaseFeedback(phase.name)
   }, [isActive, phase, currentPhaseIndex, currentRound])
 
   useEffect(() => {
     if (isComplete) {
       playAudioCue('breath-complete')
+      successFeedback()
     }
   }, [isComplete])
 
   const handleStart = () => {
+    tapFeedback()
     primeAudioCues()
     playAudioCue('breath-start')
     setCurrentPhaseIndex(0)
@@ -315,6 +364,7 @@ function ProtocolBreathScreen({
   }
 
   const handleStop = () => {
+    tapFeedback()
     setIsActive(false)
     setCurrentPhaseIndex(0)
     setPhaseElapsedMs(0)
@@ -324,7 +374,7 @@ function ProtocolBreathScreen({
 
   if (!selectedProtocol) {
     return (
-      <section className="screen-shell screen-light">
+      <section className="screen-shell">
         <div className="top-chrome">
           <button type="button" className="round-icon-btn" onClick={onBack} aria-label="Back">
             <BackIcon />
@@ -376,7 +426,7 @@ function ProtocolBreathScreen({
   }
 
   return (
-    <section className="screen-shell screen-light">
+    <section className="screen-shell">
       <div className="top-chrome">
         <button
           type="button"
@@ -402,14 +452,13 @@ function ProtocolBreathScreen({
             <div className="safety-banner mt-3">{selectedProtocol.safetyWarning}</div>
           )}
 
-          <div className="card-media-strip card-media-strip-breath mt-4" aria-hidden />
-
           <div className="mt-8 grid place-items-center breath-orb-wrap">
-            <div className={`breath-orb breath-orb-reference ${isComplete ? 'breath-hold' : phaseRingClass}`}>
-              <span className="hud-font text-sm text-[var(--text-secondary)]">
-                {isComplete ? 'Done' : phase?.name ?? 'Ready'}
-              </span>
-            </div>
+            <BreathCadenceRing
+              phaseLabel={isComplete ? 'Done' : phase?.name ?? 'Ready'}
+              progress={phaseProgress}
+              phaseClassName={isComplete ? 'breath-hold' : phaseRingClass}
+              detailLabel={phaseDetailLabel}
+            />
           </div>
 
           {isActive && phase && (
@@ -489,6 +538,43 @@ function MetricChip({ label, value }: { label: string; value: string }) {
     <div className="metric-chip">
       <p className="metric-chip-label">{label}</p>
       <p className="metric-chip-value mt-3">{value}</p>
+    </div>
+  )
+}
+
+function BreathCadenceRing({
+  phaseLabel,
+  progress,
+  phaseClassName,
+  detailLabel,
+}: {
+  phaseLabel: string
+  progress: number
+  phaseClassName: 'breath-inhale' | 'breath-hold' | 'breath-exhale'
+  detailLabel: string
+}) {
+  const radius = 56
+  const circumference = 2 * Math.PI * radius
+  const normalizedProgress = Math.min(Math.max(progress, 0), 1)
+  const strokeOffset = circumference * (1 - normalizedProgress)
+
+  return (
+    <div className={`breath-progress-shell ${phaseClassName}`}>
+      <svg className="breath-progress-svg" viewBox="0 0 140 140" role="img" aria-label={`${phaseLabel} ${detailLabel}`}>
+        <circle className="breath-progress-track" cx="70" cy="70" r={radius} />
+        <circle
+          className="breath-progress-ring"
+          cx="70"
+          cy="70"
+          r={radius}
+          strokeDasharray={`${circumference} ${circumference}`}
+          style={{ strokeDashoffset: strokeOffset }}
+        />
+      </svg>
+      <div className="breath-progress-center">
+        <span className="hud-font text-sm text-[var(--text-secondary)]">{phaseLabel}</span>
+        <span className="hud-font text-xs text-[var(--text-muted)]">{detailLabel}</span>
+      </div>
     </div>
   )
 }

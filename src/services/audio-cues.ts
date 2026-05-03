@@ -30,7 +30,7 @@ export type AudioCue =
 
 const AUDIO_PREFERENCE_KEY = 'navafit:audio-cues-enabled'
 const AUDIO_VOLUME_KEY = 'navafit:audio-volume'
-const DEFAULT_VOLUME = 0.65
+const DEFAULT_VOLUME = 0.72
 
 type WindowWithAudio = typeof window & {
   webkitAudioContext?: typeof AudioContext
@@ -160,31 +160,31 @@ function scheduleTone(ctx: AudioContext, spec: ToneSpec, startOffsetSec: number,
 }
 
 // Bell ring: A6 fundamental + E7 overtone, both start simultaneously,
-// fast 12 ms attack, long 650 ms exponential decay — mimics a struck bell.
+// fast 12 ms attack, slightly longer decay for better audibility.
 const BELL_RING: ToneSpec[] = [
-  { frequency: 1760, durationMs: 650, peakGain: 0.72, offsetSec: 0 },
-  { frequency: 2637, durationMs: 650, peakGain: 0.29, offsetSec: 0 },
+  { frequency: 1760, durationMs: 880, peakGain: 0.82, offsetSec: 0 },
+  { frequency: 2637, durationMs: 880, peakGain: 0.34, offsetSec: 0 },
 ]
 
-// Loud chime (3-note ascending): C6 → E6 → G6, rapid sequence.
+// Loud chime (3-note ascending): C6 → E6 → G6, slightly slower sequence.
 const LOUD_CHIME_3: ToneSpec[] = [
-  { frequency: 1047, durationMs: 300, peakGain: 0.82, offsetSec: 0 },
-  { frequency: 1319, durationMs: 300, peakGain: 0.82, offsetSec: 0.14 },
-  { frequency: 1568, durationMs: 300, peakGain: 0.82, offsetSec: 0.28 },
+  { frequency: 1047, durationMs: 380, peakGain: 0.88, offsetSec: 0 },
+  { frequency: 1319, durationMs: 380, peakGain: 0.88, offsetSec: 0.18 },
+  { frequency: 1568, durationMs: 420, peakGain: 0.9, offsetSec: 0.36 },
 ]
 
 // Loud chime (4-note finish): C6 → E6 → G6 → C7, grander completion fanfare.
 const LOUD_CHIME_4: ToneSpec[] = [
-  { frequency: 1047, durationMs: 350, peakGain: 0.82, offsetSec: 0 },
-  { frequency: 1319, durationMs: 350, peakGain: 0.82, offsetSec: 0.13 },
-  { frequency: 1568, durationMs: 350, peakGain: 0.82, offsetSec: 0.26 },
-  { frequency: 2093, durationMs: 450, peakGain: 0.90, offsetSec: 0.39 },
+  { frequency: 1047, durationMs: 420, peakGain: 0.88, offsetSec: 0 },
+  { frequency: 1319, durationMs: 420, peakGain: 0.88, offsetSec: 0.18 },
+  { frequency: 1568, durationMs: 420, peakGain: 0.88, offsetSec: 0.36 },
+  { frequency: 2093, durationMs: 620, peakGain: 0.94, offsetSec: 0.54 },
 ]
 
 // Loud chime (2-note bright): E6 → G6, for interval rest-start signal.
 const LOUD_CHIME_2: ToneSpec[] = [
-  { frequency: 1319, durationMs: 280, peakGain: 0.78, offsetSec: 0 },
-  { frequency: 1568, durationMs: 280, peakGain: 0.78, offsetSec: 0.14 },
+  { frequency: 1319, durationMs: 360, peakGain: 0.84, offsetSec: 0 },
+  { frequency: 1568, durationMs: 400, peakGain: 0.86, offsetSec: 0.18 },
 ]
 
 // Peaceful hymn: soft C5–E5–G5 major triad, triangle waves, slow 80 ms attack.
@@ -209,7 +209,7 @@ const CUE_PATTERNS: Record<AudioCue, ToneSpec[]> = {
   start: LOUD_CHIME_3,
 
   // Soft descending single tone — paused
-  pause: [{ frequency: 440, durationMs: 200, peakGain: 0.28 }],
+  pause: [{ frequency: 440, durationMs: 360, peakGain: 0.34 }],
 
   // Bell ring — individual lap completed
   lap: BELL_RING,

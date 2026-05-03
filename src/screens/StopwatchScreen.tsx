@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { playAudioCue, primeAudioCues } from '../services/audio-cues'
 import { hapticLap, hapticStartPause } from '../services/haptics'
 import { computeLapSplits, formatStopwatch } from '../services/stopwatch'
 import type { SessionPreset, SessionSavePayload, StopwatchModeConfig, WeatherSnapshot } from '../types'
 
-type AutoLapPhase = 'idle' | 'lap' | 'rest' | 'complete'
+type AutoLapPhase = 'idle' | 'lap' | 'rest' | 'stopped' | 'complete'
 
 interface StopwatchScreenProps {
   onBack: () => void
@@ -16,7 +16,7 @@ interface StopwatchScreenProps {
   onSaveSession: (session: SessionSavePayload) => Promise<void> | void
 }
 
-export function StopwatchScreen({
+function StopwatchScreenInner({
   onBack,
   weatherSnapshot,
   heartRate,
@@ -154,7 +154,13 @@ export function StopwatchScreen({
 
   const persistSession = useCallback(() => {
     const liveElapsed = isAutoLap
-      ? carriedElapsedRef.current
+      ? (() => {
+          if (autoLapPhase === 'lap' && lapTimerStartRef.current !== null) {
+            const inFlightLapElapsed = Math.min(performance.now() - lapTimerStartRef.current, lapDurationMs)
+            return carriedElapsedRef.current + inFlightLapElapsed
+          }
+          return Math.max(carriedElapsedRef.current, latestElapsedRef.current)
+        })()
       : runningStartRef.current === null
         ? latestElapsedRef.current
         : carriedElapsedRef.current + (performance.now() - runningStartRef.current)
@@ -183,7 +189,7 @@ export function StopwatchScreen({
         lapSplitsMs: computeLapSplits(laps).map((s) => s.splitMs),
       },
     })
-  }, [isAutoLap, laps, onSaveSession, sessionPreset, stopwatchMode])
+  }, [autoLapPhase, isAutoLap, lapDurationMs, laps, onSaveSession, sessionPreset, stopwatchMode])
 
   // Auto-save when auto-lap completes
   useEffect(() => {
@@ -239,8 +245,8 @@ export function StopwatchScreen({
     hapticStartPause()
 
     if (isAutoLap) {
-      if (autoLapPhase === 'idle' || autoLapPhase === 'complete') {
-        if (autoLapPhase === 'complete') handleReset()
+      if (autoLapPhase === 'idle' || autoLapPhase === 'stopped' || autoLapPhase === 'complete') {
+        if (autoLapPhase === 'stopped' || autoLapPhase === 'complete') handleReset()
         if (!sessionStartedAtRef.current) sessionStartedAtRef.current = new Date().toISOString()
         setIsRunning(true)
         setAutoLapPhase('lap')
@@ -266,6 +272,37 @@ export function StopwatchScreen({
     playAudioCue('start')
   }
 
+  const handleStop = () => {
+    if (!isAutoLap) return
+    if (autoLapPhase !== 'lap' && autoLapPhase !== 'rest') return
+
+    if (restTimerRef.current !== null) {
+      window.clearInterval(restTimerRef.current)
+      restTimerRef.current = null
+    }
+
+    const inFlightLapElapsed =
+      autoLapPhase === 'lap' && lapTimerStartRef.current !== null
+        ? Math.min(performance.now() - lapTimerStartRef.current, lapDurationMs)
+        : 0
+
+    const totalElapsed = carriedElapsedRef.current + inFlightLapElapsed
+    carriedElapsedRef.current = totalElapsed
+    latestElapsedRef.current = totalElapsed
+    lapTimerStartRef.current = null
+    runningStartRef.current = null
+
+    setLapElapsedMs(inFlightLapElapsed)
+    setRestRemainingMs(0)
+    setElapsedMs(totalElapsed)
+    setIsRunning(false)
+    setAutoLapPhase('stopped')
+
+    hapticStartPause()
+    playAudioCue('pause')
+    persistSession()
+  }
+
   const handleBack = () => {
     persistSession()
     onBack()
@@ -274,7 +311,7 @@ export function StopwatchScreen({
   const lapRemainingMs = isAutoLap ? Math.max(0, lapDurationMs - lapElapsedMs) : 0
 
   return (
-    <section className="screen-shell screen-light">
+    <section className="screen-shell">
       <div className="top-chrome">
         <button type="button" className="round-icon-btn" onClick={handleBack} aria-label="Back">
           <BackIcon />
@@ -356,14 +393,22 @@ export function StopwatchScreen({
           </div>
 
           {isAutoLap ? (
-            <div className="button-row button-row--2 mt-5">
+            <div className="button-row mt-5">
               <button
                 type="button"
                 className="primary-btn primary-btn-strong"
                 onClick={handleStartPause}
                 disabled={autoLapPhase === 'lap' || autoLapPhase === 'rest'}
               >
-                {autoLapPhase === 'complete' ? 'Restart' : 'Start'}
+                {autoLapPhase === 'complete' || autoLapPhase === 'stopped' ? 'Restart' : 'Start'}
+              </button>
+              <button
+                type="button"
+                className="secondary-btn"
+                onClick={handleStop}
+                disabled={autoLapPhase !== 'lap' && autoLapPhase !== 'rest'}
+              >
+                Stop
               </button>
               <button type="button" className="secondary-btn" onClick={handleReset}>
                 Reset
@@ -427,6 +472,8 @@ export function StopwatchScreen({
     </section>
   )
 }
+
+export const StopwatchScreen = memo(StopwatchScreenInner)
 
 function MetricChip({ label, value }: { label: string; value: string }) {
   return (

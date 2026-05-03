@@ -15,6 +15,8 @@ export interface HealthMetrics {
   breathPerMinute: number
   endurance: number
   stressLevel: number
+  /** Today's step count from Apple Health when synced on native iOS; null if unknown or not granted. */
+  stepsToday: number | null
 }
 
 export interface WorkoutLog {

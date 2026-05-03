@@ -62,10 +62,11 @@ export async function syncTelemetry({
   const startedAt = new Date().toISOString()
   const weatherSnapshot = await fetchWeatherSnapshot(capabilities.weather)
   const completedAt = new Date().toISOString()
+  const canUseNativeHealth = allowHealthSync && supportsNativeHealthSync()
 
   try {
     const nativeHealthSync =
-      allowHealthSync && supportsNativeHealthSync()
+      canUseNativeHealth
         ? await syncNativeHealth(currentHealth)
         : {
             source: 'app' as const,
@@ -179,6 +180,12 @@ function detectCapabilities(): DeviceCapabilities {
     fitnessWatch: platformHasCapacitor,
     weather,
   }
+}
+
+/** Fetches Open-Meteo weather for current device position; no HealthKit or Supabase writes. */
+export async function fetchLiveWeatherSnapshot(): Promise<WeatherSnapshot> {
+  const capabilities = detectCapabilities()
+  return fetchWeatherSnapshot(capabilities.weather)
 }
 
 async function fetchWeatherSnapshot(weatherCapability: boolean): Promise<WeatherSnapshot> {

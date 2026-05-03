@@ -45,7 +45,7 @@ export function LoginScreen({
   }
 
   return (
-    <div className="login-screen-dark min-h-screen">
+    <div className="login-screen-dark h-full w-full flex-1">
       <section className="screen-shell justify-center">
         <div className="content-stack my-auto space-y-3">
 
@@ -56,7 +56,9 @@ export function LoginScreen({
                 src={LOGO_SRC}
                 alt="NavaFit logo"
                 className="login-hero-logo"
-                onError={() => setLogoFailed(true)}
+                onError={() => {
+                  setLogoFailed(true)
+                }}
               />
             ) : (
               <div className="login-hero-logo flex items-center justify-center">
@@ -105,7 +107,7 @@ export function LoginScreen({
                 </button>
                 <button
                   type="button"
-                  className={mode === 'sign-up' ? 'is-active' : ''}
+                  className={mode === 'sign-up' ? 'login-mode-create is-active' : 'login-mode-create'}
                   onClick={() => setMode('sign-up')}
                   disabled={isAuthBusy || isBootstrapping}
                 >
@@ -144,7 +146,7 @@ export function LoginScreen({
               />
             </div>
 
-            <button type="submit" disabled={isFormDisabled} className="login-cta-btn">
+            <button type="submit" disabled={isFormDisabled} className="primary-btn primary-btn-strong w-full justify-center">
               {submitLabel}
             </button>
 

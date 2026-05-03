@@ -163,6 +163,31 @@ export async function finalizeAuthFromUrl(url: string): Promise<Session | null> 
   return null
 }
 
+export async function deleteOwnAccount(): Promise<void> {
+  if (!supabase) {
+    throw new Error('Supabase is not configured yet.')
+  }
+
+  const { data, error } = await supabase.functions.invoke<{ ok?: boolean; error?: string }>(
+    'delete-account',
+    { method: 'POST' },
+  )
+
+  if (error) {
+    throw error
+  }
+
+  if (data?.error) {
+    throw new Error(data.error)
+  }
+
+  if (!data?.ok) {
+    throw new Error('Account deletion did not complete. Please contact support.')
+  }
+
+  await supabase.auth.signOut()
+}
+
 export function formatAuthError(error: unknown) {
   const fallbackMessage = 'Something went wrong while talking to Supabase Auth.'
   const message = error instanceof Error ? error.message : fallbackMessage

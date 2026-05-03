@@ -14,6 +14,7 @@ const baseHealth: HealthMetrics = {
   breathPerMinute: 15,
   endurance: 68,
   stressLevel: 34,
+  stepsToday: null,
 }
 
 const baseTelemetry: TelemetryState = {

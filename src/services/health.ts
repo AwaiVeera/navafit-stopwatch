@@ -22,11 +22,15 @@ const HEALTH_SAMPLE_TYPES: HealthDataType[] = [
 ]
 
 const HEALTH_WRITE_TYPES: HealthDataType[] = [
-  'activeEnergyBurned' as HealthDataType,
-  'mindfulness' as HealthDataType,
+  'totalCalories',
+  'mindfulness',
 ]
 
-const HEALTH_READ_TYPES: HealthDataType[] = [...HEALTH_SAMPLE_TYPES, 'workouts' as HealthDataType]
+const HEALTH_READ_TYPES: HealthDataType[] = [
+  ...HEALTH_SAMPLE_TYPES,
+  'steps' as HealthDataType,
+  'workouts' as HealthDataType,
+]
 
 interface DerivedHealthInput {
   fallbackHealth: HealthMetrics
@@ -111,6 +115,7 @@ export function deriveHealthMetricsFromHealthKit({
     breathPerMinute: clampRounded(respiratoryRate ?? fallbackHealth.breathPerMinute, 6, 40),
     endurance: clampRounded(endurance, 0, 100),
     stressLevel: clampRounded(stressLevel, 0, 100),
+    stepsToday: fallbackHealth.stepsToday,
   }
 }
 
@@ -152,12 +157,15 @@ export async function syncNativeHealth(fallbackHealth: HealthMetrics): Promise<N
   const emptySamples = { samples: [] as HealthSample[] }
   const emptyWorkouts = { workouts: [] as Workout[] }
 
+  const startOfLocalDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0).toISOString()
+
   const [
     heartRateResult,
     restingHeartRateResult,
     respiratoryRateResult,
     heartRateVariabilityResult,
     sleepResult,
+    stepsResult,
     workoutsResult,
   ] = await Promise.all([
     Health.readSamples({ dataType: 'heartRate', startDate: last24Hours, endDate, limit: 20 }).catch(() => emptySamples),
@@ -165,6 +173,9 @@ export async function syncNativeHealth(fallbackHealth: HealthMetrics): Promise<N
     Health.readSamples({ dataType: 'respiratoryRate', startDate: last24Hours, endDate, limit: 20 }).catch(() => emptySamples),
     Health.readSamples({ dataType: 'heartRateVariability', startDate: last7Days, endDate, limit: 20 }).catch(() => emptySamples),
     Health.readSamples({ dataType: 'sleep', startDate: last36Hours, endDate, limit: 30 }).catch(() => emptySamples),
+    Health.readSamples({ dataType: 'steps' as HealthDataType, startDate: startOfLocalDay, endDate, limit: 8000 }).catch(
+      () => emptySamples,
+    ),
     Health.queryWorkouts({ startDate: last30Days, endDate, limit: 8 }).catch(() => emptyWorkouts),
   ])
 
@@ -179,7 +190,7 @@ export async function syncNativeHealth(fallbackHealth: HealthMetrics): Promise<N
     || heartRateResult.samples.some(isAppleWatchSample)
     || respiratoryRateResult.samples.some(isAppleWatchSample)
 
-  const health = deriveHealthMetricsFromHealthKit({
+  const derivedHealth = deriveHealthMetricsFromHealthKit({
     fallbackHealth,
     heartRate: latestHeartRate,
     restingHeartRate: latestRestingHeartRate,
@@ -189,6 +200,12 @@ export async function syncNativeHealth(fallbackHealth: HealthMetrics): Promise<N
     recentWorkoutMinutes,
     recentWorkoutCount: importedWorkouts.length,
   })
+
+  const stepsFromSamples = sumStepSamples(stepsResult.samples)
+  const health: HealthMetrics = {
+    ...derivedHealth,
+    stepsToday: stepsResult.samples.length > 0 ? Math.round(stepsFromSamples) : derivedHealth.stepsToday,
+  }
 
   const lastSyncedAt = new Date().toISOString()
   const deviceConnections: DeviceConnectionRecord[] = [
@@ -201,6 +218,7 @@ export async function syncNativeHealth(fallbackHealth: HealthMetrics): Promise<N
         'respiratoryRate',
         'heartRateVariability',
         'sleep',
+        'steps',
         'workouts',
       ],
       lastSyncedAt,
@@ -255,6 +273,13 @@ function formatWorkoutType(workoutType: Workout['workoutType']) {
     .replace(/([A-Z])/g, ' $1')
     .replace(/^./, (character) => character.toUpperCase())
     .trim()
+}
+
+function sumStepSamples(samples: HealthSample[]) {
+  return samples.reduce((total, sample) => {
+    const value = typeof sample.value === 'number' ? sample.value : 0
+    return total + value
+  }, 0)
 }
 
 function getLatestSampleValue(samples: HealthSample[]) {
@@ -334,7 +359,7 @@ export async function writeSessionToAppleHealth({
 
   try {
     await Health.saveSample({
-      dataType: 'activeEnergyBurned' as HealthDataType,
+      dataType: 'totalCalories',
       value: kcal,
       startDate: startedAt,
       endDate: endedAt,

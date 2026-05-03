@@ -3,6 +3,9 @@ import { useEffect, useRef, useState } from 'react'
 import { askAY } from '../services/perplexity'
 import type { AYMessage } from '../services/perplexity'
 
+const MAX_CONTEXT_MESSAGES = 20
+const MAX_RENDER_MESSAGES = 80
+
 export function AYScreen() {
   const [messages, setMessages] = useState<AYMessage[]>([])
   const [input, setInput] = useState('')
@@ -21,7 +24,7 @@ export function AYScreen() {
     if (!trimmed || isBusy) return
 
     const userMessage: AYMessage = { role: 'user', content: trimmed }
-    const nextMessages: AYMessage[] = [...messages, userMessage]
+    const nextMessages: AYMessage[] = [...messages, userMessage].slice(-MAX_RENDER_MESSAGES)
 
     setMessages(nextMessages)
     setInput('')
@@ -29,8 +32,9 @@ export function AYScreen() {
     setIsBusy(true)
 
     try {
-      const reply = await askAY(nextMessages)
-      setMessages((prev) => [...prev, { role: 'assistant', content: reply }])
+      const reply = await askAY(nextMessages.slice(-MAX_CONTEXT_MESSAGES))
+      const assistantReply: AYMessage = { role: 'assistant', content: reply }
+      setMessages((prev) => [...prev, assistantReply].slice(-MAX_RENDER_MESSAGES))
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Could not reach AY. Check your connection.'
       setError(message)

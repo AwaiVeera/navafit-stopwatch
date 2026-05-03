@@ -145,11 +145,11 @@ describe('audio-cues', () => {
     expect(mockCtx.createOscillator).not.toHaveBeenCalled()
   })
 
-  it('plays a single tone for the start cue after priming', () => {
+  it('plays a three-tone chime for the start cue after priming', () => {
     primeAudioCues()
     playAudioCue('start')
-    expect(mockCtx.createOscillator).toHaveBeenCalledTimes(1)
-    expect(mockCtx.oscillators[0].frequency.setValueAtTime).toHaveBeenCalledWith(880, 0)
+    expect(mockCtx.createOscillator).toHaveBeenCalledTimes(3)
+    expect(mockCtx.oscillators[0].frequency.setValueAtTime).toHaveBeenCalledWith(1047, 0)
   })
 
   it('plays a double tone for the lap cue', () => {
@@ -158,10 +158,10 @@ describe('audio-cues', () => {
     expect(mockCtx.createOscillator).toHaveBeenCalledTimes(2)
   })
 
-  it('plays a three-tone chime for the complete cue', () => {
+  it('plays a four-tone chime for the complete cue', () => {
     primeAudioCues()
     playAudioCue('complete')
-    expect(mockCtx.createOscillator).toHaveBeenCalledTimes(3)
+    expect(mockCtx.createOscillator).toHaveBeenCalledTimes(4)
   })
 
   it('does not play when cues are disabled', () => {

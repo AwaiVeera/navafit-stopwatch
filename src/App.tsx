@@ -1,5 +1,7 @@
 import { App as CapacitorApp } from '@capacitor/app'
 import { Browser } from '@capacitor/browser'
+import { Capacitor } from '@capacitor/core'
+import { tapFeedback } from './utils/feedback'
 import type { PluginListenerHandle } from '@capacitor/core'
 import type { Session } from '@supabase/supabase-js'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -16,6 +18,7 @@ import { PreSessionScreen } from './screens/PreSessionScreen'
 import { SettingsScreen } from './screens/SettingsScreen'
 import { StopwatchScreen } from './screens/StopwatchScreen'
 import {
+  deleteOwnAccount,
   finalizeAuthFromUrl,
   formatAuthError,
   getProviderLabel,
@@ -52,7 +55,7 @@ import {
 } from './services/presets'
 import { supportsNativeHealthSync, writeSessionToAppleHealth } from './services/health'
 import { getSupabaseSetupMessage, isSupabaseConfigured, supabase, usesNativeAuthRedirect } from './services/supabase'
-import { createInitialTelemetryState, syncTelemetry } from './services/telemetry'
+import { createInitialTelemetryState, fetchLiveWeatherSnapshot, syncTelemetry } from './services/telemetry'
 import { hasAcceptedCurrentLegalVersions } from './legal'
 import type {
   EmailAuthMode,
@@ -81,6 +84,7 @@ const initialHealth: HealthMetrics = {
   breathPerMinute: 0,
   endurance: 0,
   stressLevel: 0,
+  stepsToday: null,
 }
 
 const initialLogs: WorkoutLog[] = []
@@ -135,6 +139,7 @@ function App() {
   const [draftPreset, setDraftPreset] = useState<SessionPreset>(STANDARD_SESSION_PRESET)
   const [activeSessionPreset, setActiveSessionPreset] = useState<SessionPreset>(STANDARD_SESSION_PRESET)
   const [isTelemetrySyncing, setIsTelemetrySyncing] = useState(false)
+  const [weatherUiPhase, setWeatherUiPhase] = useState<'idle' | 'loading' | 'offline' | 'error'>('idle')
   const [stopwatchLevel, setStopwatchLevel] = useState<TrainingLevel>('novice')
   const [breathworkLevel, setBreathworkLevel] = useState<TrainingLevel>('novice')
   const [progression, setProgression] = useState<TrainingProgression>(INITIAL_PROGRESSION)
@@ -248,6 +253,7 @@ function App() {
         setCurrentView('login')
         setHealth(initialHealth)
         setLogs(initialLogs)
+        setWeatherUiPhase('idle')
         setTelemetry(createInitialTelemetryState())
         setConsentRecord(null)
         setOnboardingProfile(null)
@@ -550,6 +556,14 @@ function App() {
     }
   }, [])
 
+  const handleDeleteAccount = useCallback(async () => {
+    setAuthError('')
+    await deleteOwnAccount()
+    setAuthMessage('Your NavaFit account has been deleted.')
+    setConsentError('')
+    pendingProviderRef.current = null
+  }, [])
+
   const handleOnboardingSubmit = useCallback(async (profile: OnboardingProfile) => {
     if (!session?.user.id) {
       return
@@ -624,6 +638,7 @@ function App() {
       })
       setHealth(synced.health)
       setTelemetry(synced.telemetry)
+      setWeatherUiPhase('idle')
       if (synced.importedWorkouts.length > 0) {
         setLogs((previous) => {
           const mergedLogs = mergeWorkoutLogs(previous, synced.importedWorkouts)
@@ -635,6 +650,90 @@ function App() {
       setIsTelemetrySyncing(false)
     }
   }, [consentRecord?.acceptedHealthSyncAt, hasCurrentConsent, health, isTelemetrySyncing, session?.user.id, telemetry])
+
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) {
+      return undefined
+    }
+
+    let listener: Awaited<ReturnType<typeof CapacitorApp.addListener>> | undefined
+
+    void CapacitorApp.addListener('appStateChange', ({ isActive }) => {
+      if (!isActive) {
+        return
+      }
+
+      void handleTelemetrySync()
+    }).then((handle) => {
+      listener = handle
+    })
+
+    return () => {
+      void listener?.remove()
+    }
+  }, [handleTelemetrySync])
+
+  useEffect(() => {
+    if (!isAuthenticated || !hasCurrentConsent || isAuthBootstrapping) {
+      return undefined
+    }
+
+    const WEATHER_REFRESH_MS = 15 * 60 * 1000
+    let cancelled = false
+
+    const refreshWeatherOnly = async () => {
+      if (cancelled || document.hidden) {
+        return
+      }
+
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        setWeatherUiPhase('offline')
+        return
+      }
+
+      setWeatherUiPhase('loading')
+
+      try {
+        const snapshot = await fetchLiveWeatherSnapshot()
+        if (cancelled) {
+          return
+        }
+
+        setTelemetry((previous) => ({
+          ...previous,
+          weatherSnapshot: snapshot,
+          weather: snapshot.source === 'disabled' ? previous.weather : 'ready',
+        }))
+
+        const liveFailed =
+          snapshot.source === 'simulated' && typeof navigator !== 'undefined' && navigator.onLine
+
+        setWeatherUiPhase(liveFailed ? 'error' : 'idle')
+      } catch {
+        if (!cancelled) {
+          setWeatherUiPhase('error')
+        }
+      }
+    }
+
+    const intervalId = window.setInterval(() => {
+      void refreshWeatherOnly()
+    }, WEATHER_REFRESH_MS)
+
+    const onVisibility = () => {
+      if (!document.hidden) {
+        void refreshWeatherOnly()
+      }
+    }
+
+    document.addEventListener('visibilitychange', onVisibility)
+
+    return () => {
+      cancelled = true
+      window.clearInterval(intervalId)
+      document.removeEventListener('visibilitychange', onVisibility)
+    }
+  }, [isAuthenticated, hasCurrentConsent, isAuthBootstrapping])
 
   useEffect(() => {
     if (!isAuthenticated || !hasCurrentConsent || isAuthBootstrapping) {
@@ -758,7 +857,14 @@ function App() {
 
     if (session?.user.id && isSupabaseConfigured) {
       try {
-        const savedWorkout = await saveWorkoutSession(session.user.id, sessionPayload)
+        const savedWorkout = await (async () => {
+          try {
+            return await saveWorkoutSession(session.user.id, sessionPayload)
+          } catch {
+            await new Promise<void>((resolve) => window.setTimeout(resolve, 450))
+            return await saveWorkoutSession(session.user.id, sessionPayload)
+          }
+        })()
         setLogs((previous) => {
           const mergedLogs = mergeWorkoutLogs(previous, [savedWorkout])
           saveLocalWorkoutCache(session.user.id, mergedLogs)
@@ -868,6 +974,7 @@ function App() {
                   onOpenStopwatch={handleOpenPreSession}
                   recommendedPreset={recommendedPreset}
                   presetMode={presetMode}
+                  weatherUiPhase={weatherUiPhase}
                 />
               )}
 
@@ -929,7 +1036,7 @@ function App() {
                   onSignOut={handleSignOut}
                   isSigningOut={isAuthBusy}
                   health={health}
-                  insights={insights}
+                  healthAppStatus={telemetry.healthApp}
                   watchStatus={telemetry.fitnessWatch}
                   onDisconnectWatch={handleDisconnectWatch}
                   isTelemetrySyncing={isTelemetrySyncing}
@@ -937,11 +1044,12 @@ function App() {
                   consentRecord={consentRecord}
                   onUpdateConsent={handleConsentSubmit}
                   onOpenBiometrics={() => setCurrentView('biometrics')}
+                  onDeleteAccount={handleDeleteAccount}
                 />
               )}
             </div>
 
-            <nav className="tab-nav">
+            <nav className="tab-nav" aria-label="Main navigation">
               <TabButton
                 label="Dashboard"
                 active={navActiveView === 'dashboard'}
@@ -1007,6 +1115,8 @@ function TabButton({
       window.clearTimeout(tapTimerRef.current)
     }
 
+    tapFeedback()
+
     setIsTapAnimating(false)
     window.requestAnimationFrame(() => {
       setIsTapAnimating(true)
@@ -1024,6 +1134,7 @@ function TabButton({
       type="button"
       onClick={handlePress}
       aria-label={label}
+      aria-current={active ? 'page' : undefined}
       className={`tab-btn ${active ? 'tab-btn-active' : ''} ${isTapAnimating ? 'tab-btn-tap' : ''}`}
     >
       <span className="flex flex-col items-center justify-center">

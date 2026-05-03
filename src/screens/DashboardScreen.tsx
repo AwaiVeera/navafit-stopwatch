@@ -1,5 +1,6 @@
-import { useMemo, useRef, useState } from 'react'
+import { memo, useMemo, useRef, useState } from 'react'
 
+import { tapFeedback } from '../utils/feedback'
 import { getDailyQuote } from '../services/quotes'
 import type {
   HealthMetrics,
@@ -21,9 +22,11 @@ interface DashboardScreenProps {
   onOpenStopwatch: () => void
   recommendedPreset: SessionPreset
   presetMode: PresetMode
+  /** Weather-only refresh UX (does not replace telemetry sync label). */
+  weatherUiPhase?: 'idle' | 'loading' | 'offline' | 'error'
 }
 
-export function DashboardScreen({
+function DashboardScreenComponent({
   health,
   insights,
   telemetry,
@@ -34,6 +37,7 @@ export function DashboardScreen({
   onOpenStopwatch,
   recommendedPreset,
   presetMode,
+  weatherUiPhase = 'idle',
 }: DashboardScreenProps) {
   const dailyQuote = getDailyQuote()
   const [reportRange, setReportRange] = useState<ReportRange>('month')
@@ -79,7 +83,7 @@ export function DashboardScreen({
         <button
           type="button"
           className="primary-btn primary-btn-strong w-full justify-center dashboard-begin-cta"
-          onClick={onOpenStopwatch}
+          onClick={() => { tapFeedback(); onOpenStopwatch() }}
         >
           Begin Session
         </button>
@@ -132,15 +136,24 @@ export function DashboardScreen({
           <div className="metric-chip-grid mt-4">
             <MetricChip label="Heart Rate" value={`${health.heartRate}`} unit="BPM" />
             <MetricChip label="Stamina" value={`${health.stamina}`} unit="%" />
-            <MetricChip
-              label="Weather"
-              value={
-                telemetry.weatherSnapshot.temperatureC === null
-                  ? telemetry.weatherSnapshot.condition
-                  : `${telemetry.weatherSnapshot.temperatureC}`
-              }
-              unit={telemetry.weatherSnapshot.temperatureC === null ? '' : 'C'}
-            />
+            <div className="metric-chip">
+              <p className="metric-chip-label">Weather</p>
+              {weatherUiPhase === 'loading' ? (
+                <p className="metric-chip-value mt-3">Updating…</p>
+              ) : telemetry.weatherSnapshot.temperatureC === null ? (
+                <p className="metric-chip-value mt-3">{telemetry.weatherSnapshot.condition}</p>
+              ) : (
+                <div className="metric-chip-value-row mt-3">
+                  <p className="metric-chip-value">{`${telemetry.weatherSnapshot.temperatureC}`}</p>
+                  <p className="metric-unit">C</p>
+                </div>
+              )}
+              {(weatherUiPhase === 'offline' || weatherUiPhase === 'error') && (
+                <p className="mt-2 text-[10px] uppercase tracking-[0.12em] text-[var(--text-dim)]">
+                  {weatherUiPhase === 'offline' ? 'Offline' : 'Live weather unavailable'}
+                </p>
+              )}
+            </div>
           </div>
         </section>
 
@@ -292,6 +305,8 @@ export function DashboardScreen({
     </section>
   )
 }
+
+export const DashboardScreen = memo(DashboardScreenComponent)
 
 function InsightCard({
   title,

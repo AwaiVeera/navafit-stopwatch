@@ -1,0 +1,5 @@
+# Local CLI / CI metadata — replace project_id when linking `supabase link`.
+# Edge Function deploy: `supabase secrets set PERPLEXITY_API_KEY=...` then `supabase functions deploy ay-chat`
+
+[functions.ay-chat]
+verify_jwt = true

@@ -118,7 +118,7 @@ export function PreSessionScreen({
   }
 
   return (
-    <section className="screen-shell screen-light">
+    <section className="screen-shell">
       <div className="top-chrome">
         <button type="button" className="round-icon-btn" onClick={onBack} aria-label="Back">
           <BackIcon />

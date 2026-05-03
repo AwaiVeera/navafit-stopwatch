@@ -1,14 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 
 import { getAudioVolume, setAudioVolume } from '../services/audio-cues'
-import type { HealthMetrics, InsightSnapshot, SyncStatus, UserConsentRecord } from '../types'
+import type { HealthMetrics, SyncStatus, UserConsentRecord } from '../types'
 
 interface SettingsScreenProps {
   accountEmail: string
   onSignOut: () => void
   isSigningOut: boolean
   health: HealthMetrics
-  insights: InsightSnapshot
+  healthAppStatus: SyncStatus
   watchStatus: SyncStatus
   onDisconnectWatch: () => void
   isTelemetrySyncing: boolean
@@ -16,12 +16,15 @@ interface SettingsScreenProps {
   consentRecord: UserConsentRecord | null
   onUpdateConsent: (submission: { acceptsHealthSync: boolean; acceptsUsageAnalytics: boolean }) => Promise<void>
   onOpenBiometrics: () => void
+  onDeleteAccount: () => Promise<void>
 }
 
 export function SettingsScreen({
   accountEmail,
   onSignOut,
   isSigningOut,
+  health,
+  healthAppStatus,
   watchStatus,
   onDisconnectWatch,
   isTelemetrySyncing,
@@ -29,18 +32,24 @@ export function SettingsScreen({
   consentRecord,
   onUpdateConsent,
   onOpenBiometrics,
+  onDeleteAccount,
 }: SettingsScreenProps) {
   const [volume, setVolume] = useState(() => getAudioVolume())
   const [healthSync, setHealthSync] = useState(Boolean(consentRecord?.acceptedHealthSyncAt))
   const [usageAnalytics, setUsageAnalytics] = useState(Boolean(consentRecord?.acceptedUsageAnalyticsAt))
   const [watchAnimating, setWatchAnimating] = useState(false)
   const [isDisconnecting, setIsDisconnecting] = useState(false)
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [deleteConfirmText, setDeleteConfirmText] = useState('')
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState('')
   const watchAnimRef = useRef<number | null>(null)
-
-  useEffect(() => {
+  const [prevConsentRecord, setPrevConsentRecord] = useState(consentRecord)
+  if (prevConsentRecord !== consentRecord) {
+    setPrevConsentRecord(consentRecord)
     setHealthSync(Boolean(consentRecord?.acceptedHealthSyncAt))
     setUsageAnalytics(Boolean(consentRecord?.acceptedUsageAnalyticsAt))
-  }, [consentRecord])
+  }
 
   useEffect(() => {
     return () => {
@@ -77,8 +86,49 @@ export function SettingsScreen({
     await onUpdateConsent({ acceptsHealthSync: healthSync, acceptsUsageAnalytics: next })
   }
 
+  const openDeleteDialog = () => {
+    setDeleteConfirmText('')
+    setDeleteError('')
+    setIsDeleteDialogOpen(true)
+  }
+
+  const closeDeleteDialog = () => {
+    if (isDeleting) return
+    setIsDeleteDialogOpen(false)
+    setDeleteConfirmText('')
+    setDeleteError('')
+  }
+
+  const handleConfirmDelete = async () => {
+    if (deleteConfirmText.trim().toUpperCase() !== 'DELETE') {
+      setDeleteError('Type DELETE to confirm.')
+      return
+    }
+    setIsDeleting(true)
+    setDeleteError('')
+    try {
+      await onDeleteAccount()
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Could not delete account. Try again.'
+      setDeleteError(message)
+      setIsDeleting(false)
+      return
+    }
+    setIsDeleting(false)
+    setIsDeleteDialogOpen(false)
+  }
+
   const watchConnected = watchStatus === 'ready'
   const watchLabel = watchStatus === 'ready' ? 'Connected' : watchStatus === 'syncing' ? 'Syncing…' : watchStatus === 'unavailable' ? 'Unavailable' : 'Disconnected'
+
+  const stepsUnavailableCopy =
+    healthAppStatus === 'unavailable'
+      ? 'Apple Health steps are only available in the native iPhone app.'
+      : !healthSync
+        ? 'Turn on Apple Health sync below to load today’s steps.'
+        : healthAppStatus === 'error'
+          ? 'Health sync hit an error. Tap Sync below to try again.'
+          : 'Tap Sync below to refresh. If steps stay blank, open the Health app and allow Steps for NavaFit.'
 
   return (
     <section className="screen-shell settings-screen">
@@ -104,6 +154,28 @@ export function SettingsScreen({
             >
               {isSigningOut ? 'Signing out…' : 'Sign out'}
             </button>
+          </div>
+        </section>
+
+        {/* ── Daily activity (profile) ── */}
+        <section className="glass-sheet cinema-surface space-y-4" aria-labelledby="daily-activity-heading">
+          <p id="daily-activity-heading" className="label-text">
+            Daily activity
+          </p>
+          <div className="space-y-3">
+            <div>
+              <p className="title-font text-[1.05rem] font-medium text-[var(--text-primary)]">Steps walked today</p>
+              {health.stepsToday !== null ? (
+                <p className="hud-font mt-1 text-2xl tabular-nums text-[var(--accent-primary)]">
+                  {health.stepsToday.toLocaleString()}
+                </p>
+              ) : (
+                <p className="support-copy mt-1">{stepsUnavailableCopy}</p>
+              )}
+            </div>
+            <p className="support-copy rounded-xl border border-white/10 bg-white/5 px-3 py-2.5">
+              Drink enough water throughout the day.
+            </p>
           </div>
         </section>
 
@@ -175,7 +247,7 @@ export function SettingsScreen({
 
           <ToggleRow
             label="Apple Health Sync"
-            description="Read heart rate, workouts, and readiness from Apple Health"
+            description="Read heart rate, steps, workouts, and readiness from Apple Health"
             checked={healthSync}
             onChange={() => void handleHealthSyncToggle()}
           />
@@ -203,7 +275,85 @@ export function SettingsScreen({
           </button>
         </section>
 
+        {/* ── Danger zone ── */}
+        <section className="glass-sheet cinema-surface space-y-3" aria-labelledby="danger-zone-heading">
+          <p id="danger-zone-heading" className="label-text">
+            Danger zone
+          </p>
+          <div className="info-row items-center">
+            <div className="flex-1 pr-3">
+              <p className="title-font text-[1.05rem] font-medium text-[var(--text-primary)]">Delete account</p>
+              <p className="support-copy mt-1">
+                Permanently removes your NavaFit account, sessions, and synced health data. This cannot be undone.
+              </p>
+            </div>
+            <button
+              type="button"
+              className="settings-danger-btn"
+              onClick={openDeleteDialog}
+              disabled={isDeleting}
+            >
+              Delete
+            </button>
+          </div>
+        </section>
+
       </div>
+
+      {isDeleteDialogOpen && (
+        <div
+          className="settings-modal-backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="delete-account-title"
+        >
+          <div className="settings-modal-card glass-sheet cinema-surface">
+            <p id="delete-account-title" className="title-font text-[1.2rem] font-semibold text-[var(--text-primary)]">
+              Delete your account?
+            </p>
+            <p className="support-copy mt-2">
+              This permanently removes your sessions, telemetry, and consent records from NavaFit. To confirm, type
+              {' '}
+              <span className="hud-font text-[var(--accent-primary)]">DELETE</span>
+              {' '}
+              below.
+            </p>
+            <input
+              type="text"
+              value={deleteConfirmText}
+              onChange={(event) => setDeleteConfirmText(event.target.value)}
+              autoCapitalize="characters"
+              autoCorrect="off"
+              spellCheck={false}
+              placeholder="DELETE"
+              className="settings-modal-input mt-4"
+              aria-label="Type DELETE to confirm"
+              disabled={isDeleting}
+            />
+            {deleteError && (
+              <p className="support-copy mt-2 text-[var(--accent-warning,#f87171)]">{deleteError}</p>
+            )}
+            <div className="settings-modal-actions">
+              <button
+                type="button"
+                className="secondary-btn"
+                onClick={closeDeleteDialog}
+                disabled={isDeleting}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="settings-danger-btn"
+                onClick={() => void handleConfirmDelete()}
+                disabled={isDeleting || deleteConfirmText.trim().toUpperCase() !== 'DELETE'}
+              >
+                {isDeleting ? 'Deleting…' : 'Delete account'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   )
 }

@@ -1,50 +1,92 @@
-const SYSTEM_PROMPT = `You are AY, the NavaFit knowledge guide.
-You answer ONLY questions about these three domains:
-  1. Kalaripayattu (Kalari) — the ancient Indian martial art
-  2. Gadah (mace) training — traditional mace/gada exercise
-  3. Breathwork and Pranayama — breath-based practice and research
-
-Rules you must never break:
-- For every factual claim, cite the research study, historical text, or established tradition it comes from.
-- If a question falls outside the three domains above, respond with exactly:
-  "I only guide on Kalari, Gadah, and Breathwork. Ask me anything in those domains."
-- Never invent sources, statistics, or facts. If you are unsure, say so and recommend a primary source to consult.
-- Keep answers concise, practical, and grounded in documented evidence or living tradition.`
+import { isSupabaseConfigured, supabase } from './supabase'
 
 export interface AYMessage {
   role: 'user' | 'assistant'
   content: string
 }
 
-interface PerplexityResponse {
-  choices: [{ message: { content: string } }]
+interface AyChatSuccess {
+  content?: string
 }
 
+interface AyChatError {
+  error?: string
+  detail?: string
+}
+
+const AY_REQUEST_TIMEOUT_MS = 25000
+const MAX_CONTEXT_MESSAGES = 20
+
+/**
+ * Calls the Supabase Edge Function `ay-chat`.
+ * The Edge Function talks to Gemini, OpenAI, or Perplexity on the server — never put those keys in Vite env.
+ */
 export async function askAY(messages: AYMessage[]): Promise<string> {
-  const apiKey = import.meta.env.VITE_PERPLEXITY_API_KEY
-  if (!apiKey) {
-    throw new Error('Perplexity API key not configured. Add VITE_PERPLEXITY_API_KEY to .env.local')
+  if (!isSupabaseConfigured || !supabase) {
+    throw new Error('Supabase is not configured. Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to .env.local')
   }
 
-  const response = await fetch('https://api.perplexity.ai/chat/completions', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: 'sonar',
-      messages: [{ role: 'system', content: SYSTEM_PROMPT }, ...messages],
-      max_tokens: 600,
-      temperature: 0.2,
-    }),
-  })
+  const {
+    data: { session },
+  } = await supabase.auth.getSession()
+
+  if (!session?.access_token) {
+    throw new Error('Sign in to use AY.')
+  }
+
+  const baseUrl = import.meta.env.VITE_SUPABASE_URL?.trim()?.replace(/\/$/, '')
+  const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY?.trim()
+  if (!baseUrl || !anonKey) {
+    throw new Error('Missing Supabase URL or anon key.')
+  }
+
+  const contextMessages = messages
+    .slice(-MAX_CONTEXT_MESSAGES)
+    .map((message) => ({
+      role: message.role,
+      content: message.content.trim(),
+    }))
+
+  const controller = new AbortController()
+  const timeoutId = window.setTimeout(() => controller.abort(), AY_REQUEST_TIMEOUT_MS)
+
+  let response: Response
+  try {
+    response = await fetch(`${baseUrl}/functions/v1/ay-chat`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${session.access_token}`,
+        apikey: anonKey,
+      },
+      body: JSON.stringify({ messages: contextMessages }),
+      signal: controller.signal,
+    })
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      throw new Error('AY request timed out. Please try again.')
+    }
+    throw error
+  } finally {
+    window.clearTimeout(timeoutId)
+  }
+
+  const raw = await response.text()
+  let parsed: AyChatSuccess & AyChatError
+  try {
+    parsed = JSON.parse(raw) as AyChatSuccess & AyChatError
+  } catch {
+    throw new Error(`AY service returned invalid JSON (${response.status})`)
+  }
 
   if (!response.ok) {
-    const body = await response.text().catch(() => '')
-    throw new Error(`Perplexity error ${response.status}: ${body}`)
+    throw new Error(parsed.error ?? parsed.detail ?? `AY error ${response.status}`)
   }
 
-  const data = (await response.json()) as PerplexityResponse
-  return data.choices[0].message.content
+  const content = parsed.content?.trim()
+  if (!content) {
+    throw new Error('Empty reply from AY.')
+  }
+
+  return content
 }

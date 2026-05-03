@@ -527,6 +527,7 @@ export async function loadPersistedAppState({
       breathPerMinute: latestSnapshot?.breath_per_minute ?? fallbackHealth.breathPerMinute,
       endurance: latestSnapshot?.endurance ?? fallbackHealth.endurance,
       stressLevel: latestSnapshot?.stress_level ?? fallbackHealth.stressLevel,
+      stepsToday: fallbackHealth.stepsToday,
     },
     telemetry: {
       healthApp: mapConnectionToSyncStatus(appleHealthConnection),
