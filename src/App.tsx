@@ -651,6 +651,33 @@ function App() {
     }
   }, [consentRecord?.acceptedHealthSyncAt, hasCurrentConsent, health, isTelemetrySyncing, session?.user.id, telemetry])
 
+  const handleEnableHealthAndWeather = useCallback(async () => {
+    if (!session?.user.id) {
+      return
+    }
+
+    if (!hasCurrentConsent) {
+      setCurrentView('consent')
+      return
+    }
+
+    if (!consentRecord?.acceptedHealthSyncAt) {
+      await handleConsentSubmit({
+        acceptsHealthSync: true,
+        acceptsUsageAnalytics: Boolean(consentRecord?.acceptedUsageAnalyticsAt),
+      })
+    }
+
+    await handleTelemetrySync()
+  }, [
+    consentRecord?.acceptedHealthSyncAt,
+    consentRecord?.acceptedUsageAnalyticsAt,
+    handleConsentSubmit,
+    handleTelemetrySync,
+    hasCurrentConsent,
+    session?.user.id,
+  ])
+
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) {
       return undefined
@@ -970,6 +997,7 @@ function App() {
                   telemetry={telemetry}
                   isTelemetrySyncing={isTelemetrySyncing}
                   onSyncTelemetry={handleTelemetrySync}
+                  onEnableHealthWeather={handleEnableHealthAndWeather}
                   totalMinutes={totalMinutes}
                   onOpenStopwatch={handleOpenPreSession}
                   recommendedPreset={recommendedPreset}
@@ -1019,6 +1047,7 @@ function App() {
                   sessionPreset={activeSessionPreset}
                   breathworkMode={activeBreathworkMode}
                   onBack={() => setCurrentView('dashboard')}
+                  onSaveSession={handleSaveStopwatchSession}
                 />
               )}
 

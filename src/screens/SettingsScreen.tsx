@@ -78,6 +78,9 @@ export function SettingsScreen({
     const next = !healthSync
     setHealthSync(next)
     await onUpdateConsent({ acceptsHealthSync: next, acceptsUsageAnalytics: usageAnalytics })
+    if (next) {
+      onSyncTelemetry()
+    }
   }
 
   const handleAnalyticsToggle = async () => {

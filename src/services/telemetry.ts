@@ -80,6 +80,7 @@ export async function syncTelemetry({
             summary: allowHealthSync
               ? 'Open the native iPhone build to sync Apple Health.'
               : 'Accept health sync consent to start pulling Apple Health data.',
+            permissionError: null,
           }
 
     const savedWorkouts = nativeHealthSync.importedWorkouts.length
@@ -111,16 +112,25 @@ export async function syncTelemetry({
       })
     }
 
+    const syncLabel = nativeHealthSync.permissionError
+      ? 'Apple Health permission denied. Open iPhone Settings > Privacy & Security > Health > NavaFit and allow access, then tap Sync.'
+      : `Synced ${new Date(completedAt).toLocaleTimeString([], {
+          hour: '2-digit',
+          minute: '2-digit',
+        })}`
+
     return {
       health: nativeHealthSync.health,
       telemetry: {
-        healthApp: nativeHealthSync.deviceConnections.some((connection) => connection.provider === 'apple_health')
-          ? 'ready'
-          : allowHealthSync && capabilities.healthApp
-            ? 'idle'
-            : capabilities.healthApp
+        healthApp: nativeHealthSync.permissionError
+          ? 'error'
+          : nativeHealthSync.deviceConnections.some((connection) => connection.provider === 'apple_health')
+            ? 'ready'
+            : allowHealthSync && capabilities.healthApp
               ? 'idle'
-              : 'unavailable',
+              : capabilities.healthApp
+                ? 'idle'
+                : 'unavailable',
         fitnessWatch: nativeHealthSync.deviceConnections.some((connection) => connection.provider === 'apple_watch')
           ? 'ready'
           : capabilities.fitnessWatch
@@ -128,10 +138,7 @@ export async function syncTelemetry({
             : 'unavailable',
         weather: capabilities.weather ? 'ready' : 'unavailable',
         weatherSnapshot,
-        lastSyncLabel: `Synced ${new Date(completedAt).toLocaleTimeString([], {
-          hour: '2-digit',
-          minute: '2-digit',
-        })}`,
+        lastSyncLabel: syncLabel,
         healthSourceLabel: nativeHealthSync.providerLabel,
         watchSourceLabel: nativeHealthSync.deviceConnections.some((connection) => connection.provider === 'apple_watch')
           ? 'Apple Watch'

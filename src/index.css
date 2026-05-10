@@ -1606,8 +1606,8 @@ select {
 
 .breath-progress-shell {
   position: relative;
-  width: 9.2rem;
-  height: 9.2rem;
+  width: 9rem;
+  height: 9rem;
   display: grid;
   place-items: center;
   border-radius: 999px;
@@ -1615,8 +1615,8 @@ select {
 }
 
 .breath-progress-svg {
-  width: 9.2rem;
-  height: 9.2rem;
+  width: 9rem;
+  height: 9rem;
   transform: rotate(-90deg);
 }
 
@@ -1648,8 +1648,15 @@ select {
   border-color: rgba(130, 165, 90, 0.16);
 }
 
+.breath-marker-sheet {
+  margin-bottom: var(--tab-nav-clearance);
+}
+
 .breath-orb-wrap {
   position: relative;
+  min-height: 11rem;
+  display: grid;
+  place-items: center;
 }
 
 .breath-phase-tile {
@@ -1960,30 +1967,56 @@ select {
 }
 
 .login-hero-panel {
-  background: linear-gradient(160deg, rgba(30,42,14,0.82) 0%, rgba(12,18,6,0.94) 100%);
-  border: 1px solid var(--login-border);
-  border-radius: 1.25rem;
-  padding: 2rem 1.5rem 1.75rem;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 1.25rem 0.5rem 1.25rem;
   text-align: center;
   position: relative;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .login-hero-panel::before {
   content: '';
   position: absolute;
-  inset: 0;
-  background: radial-gradient(ellipse at 50% -10%, rgba(107,127,58,0.18) 0%, transparent 65%);
+  inset: -8% 6% auto 6%;
+  height: 75%;
+  background:
+    radial-gradient(ellipse at 50% 45%, rgba(168, 196, 110, 0.34) 0%, rgba(107,127,58,0.18) 35%, transparent 70%);
   pointer-events: none;
+  z-index: 0;
+  filter: blur(2px);
 }
 
 .login-hero-logo {
-  width: 88px;
-  height: 88px;
+  position: relative;
+  z-index: 1;
+  width: 220px;
+  max-width: 64vw;
+  height: auto;
   object-fit: contain;
-  margin: 0 auto 1.1rem;
+  margin: 0 auto 0.75rem;
   display: block;
-  filter: drop-shadow(0 0 18px rgba(107,127,58,0.45));
+  background: transparent;
+  filter:
+    brightness(1.35)
+    saturate(1.45)
+    contrast(1.1)
+    drop-shadow(0 0 18px rgba(180, 210, 120, 0.85))
+    drop-shadow(0 0 38px rgba(140, 175, 70, 0.55))
+    drop-shadow(0 8px 22px rgba(0, 0, 0, 0.7));
+  animation: navafitLogoFloat 6s ease-in-out infinite;
+}
+
+@keyframes navafitLogoFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-hero-logo {
+    animation: none;
+  }
 }
 
 .login-hero-brand {
@@ -2168,7 +2201,7 @@ select {
    ═══════════════════════════════════════════════════ */
 
 .dashboard-quote-tile {
-  border-left: 3px solid var(--accent-primary);
+  /* Follows the global .glass-sheet card style (no extra accent border). */
 }
 
 .dashboard-quote-text {
@@ -2324,9 +2357,9 @@ select {
 
 .ay-input-bar {
   display: flex;
-  gap: 0.6rem;
+  gap: 0.75rem;
   align-items: flex-end;
-  padding: 0.75rem 1rem calc(0.75rem + env(safe-area-inset-bottom, 0px));
+  padding: 1rem 1rem calc(1rem + env(safe-area-inset-bottom, 0px));
   background: var(--surface-glass-strong);
   border-top: 1px solid var(--surface-border-soft);
   flex-shrink: 0;
@@ -2337,14 +2370,15 @@ select {
   resize: none;
   background: var(--surface-glass-soft);
   border: 1px solid var(--surface-border);
-  border-radius: 0.75rem;
-  padding: 0.65rem 0.9rem;
-  font-size: 1rem;
+  border-radius: 1rem;
+  padding: 0.85rem 1rem;
+  min-height: 3rem;
+  font-size: 1.05rem;
   color: var(--text-primary);
   font-family: 'Inter', sans-serif;
   outline: none;
-  line-height: 1.4;
-  max-height: 7rem;
+  line-height: 1.45;
+  max-height: 9rem;
   overflow-y: auto;
 }
 
@@ -2357,8 +2391,8 @@ select {
 }
 
 .ay-send-btn {
-  width: 2.5rem;
-  height: 2.5rem;
+  width: 2.85rem;
+  height: 2.85rem;
   border-radius: 50%;
   background: linear-gradient(135deg, #0b1026 0%, #1b2553 100%);
   color: #eef2ff;

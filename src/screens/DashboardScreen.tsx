@@ -17,6 +17,7 @@ interface DashboardScreenProps {
   telemetry: TelemetryState
   isTelemetrySyncing: boolean
   onSyncTelemetry: () => void
+  onEnableHealthWeather: () => void
   logs: WorkoutLog[]
   totalMinutes: number
   onOpenStopwatch: () => void
@@ -32,6 +33,7 @@ function DashboardScreenComponent({
   telemetry,
   isTelemetrySyncing,
   onSyncTelemetry,
+  onEnableHealthWeather,
   logs,
   totalMinutes,
   onOpenStopwatch,
@@ -155,6 +157,18 @@ function DashboardScreenComponent({
               )}
             </div>
           </div>
+          {telemetry.lastSyncLabel === 'Not synced yet' && (
+            <button
+              type="button"
+              className="secondary-btn mt-4 w-full justify-center"
+              onClick={() => {
+                tapFeedback()
+                onEnableHealthWeather()
+              }}
+            >
+              Enable health & weather
+            </button>
+          )}
         </section>
 
         <section className="glass-sheet">

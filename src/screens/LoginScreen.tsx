@@ -14,7 +14,7 @@ interface LoginScreenProps {
   isSupabaseConfigured: boolean
 }
 
-const LOGO_SRC = '/Font.png'
+const LOGO_SRC = '/navafit-logo.png'
 
 export function LoginScreen({
   onEmailAuth,

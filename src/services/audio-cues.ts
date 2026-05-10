@@ -2,7 +2,8 @@
  * Audio cue service using the Web Audio API.
  *
  * Design constraints:
- * - Zero external assets. All cues are synthesized from oscillator tones.
+ * - Start buzzer may use a bundled bell sample, with synth fallback.
+ * - All other cues are synthesized from oscillator tones.
  * - Fire-and-forget and safe: never throws, never blocks the timer loops.
  * - Respects a user-controlled volume preference (0.0–1.0) stored in localStorage.
  * - iOS WebView requires a user gesture to unlock the AudioContext; callers
@@ -10,8 +11,10 @@
  *   Start / Begin buttons). Before priming, `playAudioCue()` is a no-op.
  *
  * Sound character per cue:
- *   bell-ring    — struck bell with harmonic overtone (lap end, interval end)
- *   loud-chime   — bright 3-note ascending chime (session start, complete, interval-start)
+ *   boxing-bell  — sampled bell strike for session start (with synth fallback)
+ *   bell-ring    — struck bell with harmonic overtone (lap end)
+ *   loud-chime   — distinct interval and completion patterns
+ *   tick         — short per-second countdown beep for final 10 seconds
  *   peaceful-hymn — soft major-chord triangle waves (breathwork start / finish)
  */
 
@@ -21,6 +24,7 @@ export type AudioCue =
   | 'lap'
   | 'interval-start'
   | 'interval-end'
+  | 'countdown-tick'
   | 'complete'
   | 'breath-start'
   | 'breath-complete'
@@ -38,6 +42,9 @@ type WindowWithAudio = typeof window & {
 
 let cachedContext: AudioContext | null = null
 let isPrimed = false
+let startBuzzerBuffer: AudioBuffer | null = null
+let startBuzzerLoadPromise: Promise<AudioBuffer | null> | null = null
+const START_BUZZER_URL = '/audio/start-buzzer.mp3'
 
 function getAudioContextCtor(): typeof AudioContext | null {
   if (typeof window === 'undefined') return null
@@ -69,6 +76,7 @@ export function primeAudioCues(): void {
       void ctx.resume().catch(() => undefined)
     }
     isPrimed = true
+    void warmStartBuzzerSample(ctx)
   } catch {
     // Ignore; remain unprimed.
   }
@@ -93,7 +101,7 @@ export function setAudioCuesEnabled(enabled: boolean): void {
   }
 }
 
-/** Returns the current volume multiplier in [0, 1]. Defaults to 0.65. */
+/** Returns the current volume multiplier in [0, 1]. Defaults to 0.72. */
 export function getAudioVolume(): number {
   if (typeof window === 'undefined') return DEFAULT_VOLUME
   try {
@@ -159,6 +167,53 @@ function scheduleTone(ctx: AudioContext, spec: ToneSpec, startOffsetSec: number,
   }
 }
 
+async function warmStartBuzzerSample(ctx: AudioContext): Promise<AudioBuffer | null> {
+  if (startBuzzerBuffer) return startBuzzerBuffer
+  if (startBuzzerLoadPromise) return startBuzzerLoadPromise
+  if (typeof window === 'undefined') return null
+
+  startBuzzerLoadPromise = (async () => {
+    try {
+      const response = await fetch(START_BUZZER_URL, { cache: 'force-cache' })
+      if (!response.ok) return null
+
+      const encoded = await response.arrayBuffer()
+      const decoded = await ctx.decodeAudioData(encoded.slice(0))
+      startBuzzerBuffer = decoded
+      return decoded
+    } catch {
+      return null
+    } finally {
+      startBuzzerLoadPromise = null
+    }
+  })()
+
+  return startBuzzerLoadPromise
+}
+
+function playStartBuzzerSample(ctx: AudioContext, volume: number): boolean {
+  if (!startBuzzerBuffer) return false
+
+  try {
+    const source = ctx.createBufferSource()
+    source.buffer = startBuzzerBuffer
+
+    const gain = ctx.createGain()
+    const peak = Math.max(0.0001, Math.min(1, volume))
+    gain.gain.setValueAtTime(peak, ctx.currentTime)
+
+    source.connect(gain)
+    gain.connect(ctx.destination)
+    const startAt = ctx.currentTime
+    const stopAfterSec = Math.min(startBuzzerBuffer.duration, 1.8)
+    source.start(startAt)
+    source.stop(startAt + stopAfterSec)
+    return true
+  } catch {
+    return false
+  }
+}
+
 // Bell ring: A6 fundamental + E7 overtone, both start simultaneously,
 // fast 12 ms attack, slightly longer decay for better audibility.
 const BELL_RING: ToneSpec[] = [
@@ -181,10 +236,22 @@ const LOUD_CHIME_4: ToneSpec[] = [
   { frequency: 2093, durationMs: 620, peakGain: 0.94, offsetSec: 0.54 },
 ]
 
-// Loud chime (2-note bright): E6 → G6, for interval rest-start signal.
-const LOUD_CHIME_2: ToneSpec[] = [
-  { frequency: 1319, durationMs: 360, peakGain: 0.84, offsetSec: 0 },
-  { frequency: 1568, durationMs: 400, peakGain: 0.86, offsetSec: 0.18 },
+// Interval start: descending triple chime so rest-start sounds distinct.
+const INTERVAL_START_DESC_3: ToneSpec[] = [
+  { frequency: 1568, durationMs: 220, peakGain: 0.7, offsetSec: 0 },
+  { frequency: 1319, durationMs: 220, peakGain: 0.66, offsetSec: 0.14 },
+  { frequency: 988, durationMs: 250, peakGain: 0.7, offsetSec: 0.28 },
+]
+
+// Interval end: ascending double chime, clearly different from lap bell.
+const INTERVAL_END_ASC_2: ToneSpec[] = [
+  { frequency: 988, durationMs: 190, peakGain: 0.62, offsetSec: 0 },
+  { frequency: 1568, durationMs: 260, peakGain: 0.76, offsetSec: 0.14 },
+]
+
+// Final-10-second ticker.
+const COUNTDOWN_TICK: ToneSpec[] = [
+  { frequency: 1500, durationMs: 80, peakGain: 0.58, offsetSec: 0 },
 ]
 
 // Peaceful hymn: soft C5–E5–G5 major triad, triangle waves, slow 80 ms attack.
@@ -205,7 +272,7 @@ const PEACEFUL_HYMN_FINISH: ToneSpec[] = [
 const CUE_STEP_SECONDS = 0.12
 
 const CUE_PATTERNS: Record<AudioCue, ToneSpec[]> = {
-  // Loud chimes — session begins
+  // Session begins. Prefer sampled boxing bell, fallback to this synth chime.
   start: LOUD_CHIME_3,
 
   // Soft descending single tone — paused
@@ -214,11 +281,14 @@ const CUE_PATTERNS: Record<AudioCue, ToneSpec[]> = {
   // Bell ring — individual lap completed
   lap: BELL_RING,
 
-  // Loud chimes — rest period begins (new interval starting)
-  'interval-start': LOUD_CHIME_2,
+  // Rest period begins (new interval starting).
+  'interval-start': INTERVAL_START_DESC_3,
 
-  // Bell ring — rest period over (interval ends, next lap begins)
-  'interval-end': BELL_RING,
+  // Rest period over (interval ends, next lap begins).
+  'interval-end': INTERVAL_END_ASC_2,
+
+  // Last 10-second per-second countdown beep.
+  'countdown-tick': COUNTDOWN_TICK,
 
   // Loud chimes — session fully complete
   complete: LOUD_CHIME_4,
@@ -240,11 +310,14 @@ export function playAudioCue(cue: AudioCue): void {
   if (!isAudioCuesEnabled()) return
   const ctx = ensureContext()
   if (!ctx) return
+  const volume = getAudioVolume()
+
+  if (cue === 'start' && playStartBuzzerSample(ctx, volume)) {
+    return
+  }
 
   const pattern = CUE_PATTERNS[cue]
   if (!pattern) return
-
-  const volume = getAudioVolume()
 
   for (let index = 0; index < pattern.length; index += 1) {
     const spec = pattern[index]
@@ -258,6 +331,8 @@ export const __audioCuesTestInternals = {
   reset(): void {
     cachedContext = null
     isPrimed = false
+    startBuzzerBuffer = null
+    startBuzzerLoadPromise = null
   },
   isPrimed(): boolean {
     return isPrimed

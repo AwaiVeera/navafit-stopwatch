@@ -51,6 +51,7 @@ export interface NativeHealthSyncResult {
   lastSyncedAt: string
   providerLabel: string
   summary: string
+  permissionError: string | null
 }
 
 export function supportsNativeHealthSync() {
@@ -129,6 +130,7 @@ export async function syncNativeHealth(fallbackHealth: HealthMetrics): Promise<N
       lastSyncedAt: new Date().toISOString(),
       providerLabel: 'Native health unavailable',
       summary: 'Apple Health sync is only available inside the native iPhone build.',
+      permissionError: null,
     }
   }
 
@@ -138,13 +140,17 @@ export async function syncNativeHealth(fallbackHealth: HealthMetrics): Promise<N
     throw new Error(availability.reason || 'Apple Health is unavailable on this device.')
   }
 
+  let permissionError: string | null = null
   try {
     await Health.requestAuthorization({
       read: HEALTH_READ_TYPES,
       write: HEALTH_WRITE_TYPES,
     })
-  } catch {
-    // iOS may throw even when some permissions are granted; continue and read what we can.
+  } catch (error) {
+    permissionError =
+      error instanceof Error && error.message.trim().length > 0
+        ? error.message
+        : 'Apple Health permission not granted'
   }
 
   const now = new Date()
@@ -242,6 +248,7 @@ export async function syncNativeHealth(fallbackHealth: HealthMetrics): Promise<N
     lastSyncedAt,
     providerLabel: hasAppleWatchSource ? 'Apple Watch via HealthKit' : 'Apple Health',
     summary: `Synced Apple Health metrics and ${importedWorkouts.length} recent workout${importedWorkouts.length === 1 ? '' : 's'}.`,
+    permissionError,
   }
 }
 

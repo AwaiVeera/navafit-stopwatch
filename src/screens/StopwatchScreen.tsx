@@ -3,7 +3,10 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { playAudioCue, primeAudioCues } from '../services/audio-cues'
 import { hapticLap, hapticStartPause } from '../services/haptics'
 import { computeLapSplits, formatStopwatch } from '../services/stopwatch'
+import { getTotalSessionSeconds } from '../services/stopwatch-modes'
 import type { SessionPreset, SessionSavePayload, StopwatchModeConfig, WeatherSnapshot } from '../types'
+
+const MIN_SAVE_DURATION_MS = 5_000
 
 type AutoLapPhase = 'idle' | 'lap' | 'rest' | 'stopped' | 'complete'
 
@@ -41,6 +44,8 @@ function StopwatchScreenInner({
   const [restRemainingMs, setRestRemainingMs] = useState(0)
   const restTimerRef = useRef<number | null>(null)
   const lapTimerStartRef = useRef<number | null>(null)
+  const lapCountdownSecondRef = useRef<number | null>(null)
+  const restCountdownSecondRef = useRef<number | null>(null)
 
   const isAutoLap = stopwatchMode.isAutoLap
   const lapDurationMs = (stopwatchMode.lapDurationSeconds ?? 0) * 1000
@@ -77,6 +82,7 @@ function StopwatchScreenInner({
     if (autoLapPhase !== 'lap') return undefined
 
     lapTimerStartRef.current = performance.now()
+    lapCountdownSecondRef.current = null
     let frameId: number | null = null
 
     const step = (timestamp: number) => {
@@ -87,7 +93,19 @@ function StopwatchScreenInner({
       const totalElapsed = carriedElapsedRef.current + elapsed
       setElapsedMs(totalElapsed)
 
+      const lapRemaining = Math.max(0, lapDurationMs - elapsed)
+      const remainingSeconds = Math.ceil(lapRemaining / 1000)
+      if (
+        remainingSeconds > 0
+        && remainingSeconds <= 10
+        && lapCountdownSecondRef.current !== remainingSeconds
+      ) {
+        lapCountdownSecondRef.current = remainingSeconds
+        playAudioCue('countdown-tick')
+      }
+
       if (elapsed >= lapDurationMs) {
+        lapCountdownSecondRef.current = null
         hapticLap()
         playAudioCue('lap')
         carriedElapsedRef.current += lapDurationMs
@@ -124,15 +142,26 @@ function StopwatchScreenInner({
     if (autoLapPhase !== 'rest') return undefined
 
     const startTime = performance.now()
+    restCountdownSecondRef.current = null
 
     const tickInterval = window.setInterval(() => {
       const elapsed = performance.now() - startTime
       const remaining = Math.max(0, intervalMs - elapsed)
       setRestRemainingMs(remaining)
+      const remainingSeconds = Math.ceil(remaining / 1000)
+      if (
+        remainingSeconds > 0
+        && remainingSeconds <= 10
+        && restCountdownSecondRef.current !== remainingSeconds
+      ) {
+        restCountdownSecondRef.current = remainingSeconds
+        playAudioCue('countdown-tick')
+      }
 
       if (remaining <= 0) {
         window.clearInterval(tickInterval)
         restTimerRef.current = null
+        restCountdownSecondRef.current = null
         setAutoLapPhase('lap')
         playAudioCue('interval-end')
       }
@@ -164,9 +193,10 @@ function StopwatchScreenInner({
       : runningStartRef.current === null
         ? latestElapsedRef.current
         : carriedElapsedRef.current + (performance.now() - runningStartRef.current)
-    const minutes = Math.floor(liveElapsed / 60000)
 
-    if (hasSavedSessionRef.current || minutes <= 0) return
+    if (hasSavedSessionRef.current || liveElapsed < MIN_SAVE_DURATION_MS) return
+
+    const minutes = Math.max(1, Math.round(liveElapsed / 60000))
 
     hasSavedSessionRef.current = true
     const endedAt = new Date().toISOString()
@@ -203,11 +233,10 @@ function StopwatchScreenInner({
   const displayTime = useMemo(() => formatStopwatch(elapsedMs), [elapsedMs])
   const lapSplits = useMemo(() => computeLapSplits(laps), [laps])
 
+  const totalAutoLapMs = isAutoLap ? getTotalSessionSeconds(stopwatchMode) * 1000 : 0
+  const totalAutoLapMinutes = isAutoLap ? Math.max(1, Math.round(getTotalSessionSeconds(stopwatchMode) / 60)) : 0
   const sessionProgress = isAutoLap
-    ? (() => {
-        const totalLapMs = stopwatchMode.lapCount * lapDurationMs
-        return totalLapMs > 0 ? Math.min(elapsedMs / totalLapMs, 1) : 0
-      })()
+    ? totalAutoLapMs > 0 ? Math.min(elapsedMs / totalAutoLapMs, 1) : 0
     : Math.min(elapsedMs / (sessionPreset.targetMinutes * 60 * 1000), 1)
 
   const weatherLabel =
@@ -216,6 +245,8 @@ function StopwatchScreenInner({
       : `${weatherSnapshot.condition} ${weatherSnapshot.temperatureC}C`
 
   const handleReset = () => {
+    persistSession()
+
     if (animationFrameRef.current !== null) {
       window.cancelAnimationFrame(animationFrameRef.current)
       animationFrameRef.current = null
@@ -238,6 +269,8 @@ function StopwatchScreenInner({
     setCurrentLapIndex(0)
     setLapElapsedMs(0)
     setRestRemainingMs(0)
+    lapCountdownSecondRef.current = null
+    restCountdownSecondRef.current = null
   }
 
   const handleStartPause = () => {
@@ -291,6 +324,8 @@ function StopwatchScreenInner({
     latestElapsedRef.current = totalElapsed
     lapTimerStartRef.current = null
     runningStartRef.current = null
+    lapCountdownSecondRef.current = null
+    restCountdownSecondRef.current = null
 
     setLapElapsedMs(inFlightLapElapsed)
     setRestRemainingMs(0)
@@ -371,7 +406,9 @@ function StopwatchScreenInner({
               <div className="info-row text-sm text-[var(--text-muted)]">
                 {isAutoLap ? (
                   <>
-                    <span>{stopwatchMode.lapCount} laps &times; {(stopwatchMode.lapDurationSeconds ?? 0) / 60} min</span>
+                    <span>
+                      {stopwatchMode.lapCount} laps &times; {(stopwatchMode.lapDurationSeconds ?? 0) / 60} min &middot; {totalAutoLapMinutes} min total
+                    </span>
                     <span className="hud-font text-[var(--text-secondary)]">{Math.round(sessionProgress * 100)}%</span>
                   </>
                 ) : (

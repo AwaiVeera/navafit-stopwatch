@@ -1,9 +1,42 @@
-import { memo, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import type { AudioCue } from '../services/audio-cues'
 import { playAudioCue, primeAudioCues } from '../services/audio-cues'
 import { breathPhaseFeedback, successFeedback, tapFeedback } from '../utils/feedback'
-import type { BreathProtocol, BreathworkMode, HealthMetrics, SessionPreset } from '../types'
+import {
+  GUIDED_BREATH_LEVELS,
+  findGuidedLevelByPresetLabel,
+  type GuidedBreathLevel,
+} from '../services/guided-breath-levels'
+import type {
+  BreathPreset,
+  BreathProtocol,
+  BreathworkMode,
+  HealthMetrics,
+  SessionPreset,
+  SessionSavePayload,
+} from '../types'
+
+const MIN_BREATH_SAVE_DURATION_MS = 5_000
+
+type ManualPhase = 'Inhale' | 'Hold' | 'Exhale'
+
+interface ManualPhaseLogEntry {
+  index: number
+  phase: ManualPhase
+  durationMs: number
+  startedAt: string
+}
+
+function formatPhaseDuration(ms: number): string {
+  const totalSeconds = ms / 1000
+  if (totalSeconds < 60) {
+    return `${totalSeconds.toFixed(1)}s`
+  }
+  const minutes = Math.floor(totalSeconds / 60)
+  const seconds = Math.round(totalSeconds - minutes * 60)
+  return `${minutes}m ${seconds.toString().padStart(2, '0')}s`
+}
 
 function phaseCueForName(name: string): AudioCue {
   const normalised = name.toLowerCase()
@@ -24,13 +57,21 @@ interface BreathScreenProps {
   sessionPreset: SessionPreset
   breathworkMode: BreathworkMode
   onBack: () => void
+  onSaveSession?: (session: SessionSavePayload) => Promise<void> | void
 }
 
-function BreathScreenInner({ health, sessionPreset, breathworkMode, onBack }: BreathScreenProps) {
+function BreathScreenInner({ health, sessionPreset, breathworkMode, onBack, onSaveSession }: BreathScreenProps) {
   const isNovice = breathworkMode.id === 'novice' || breathworkMode.protocols.length === 0
 
   if (isNovice) {
-    return <NoviceBreathScreen health={health} sessionPreset={sessionPreset} onBack={onBack} />
+    return (
+      <NoviceBreathScreen
+        health={health}
+        sessionPreset={sessionPreset}
+        onBack={onBack}
+        onSaveSession={onSaveSession}
+      />
+    )
   }
 
   return (
@@ -38,6 +79,7 @@ function BreathScreenInner({ health, sessionPreset, breathworkMode, onBack }: Br
       health={health}
       breathworkMode={breathworkMode}
       onBack={onBack}
+      onSaveSession={onSaveSession}
     />
   )
 }
@@ -50,15 +92,31 @@ function NoviceBreathScreen({
   health,
   sessionPreset,
   onBack,
+  onSaveSession,
 }: {
   health: HealthMetrics
   sessionPreset: SessionPreset
   onBack: () => void
+  onSaveSession?: (session: SessionSavePayload) => Promise<void> | void
 }) {
-  const [breathSecond, setBreathSecond] = useState(0)
   const [breathMode, setBreathMode] = useState<'guided' | 'manual'>('guided')
-  const [manualPhase, setManualPhase] = useState<'Inhale' | 'Hold' | 'Exhale'>('Inhale')
-  const breathCycleSeconds = sessionPreset.breathPreset.cycleSeconds
+
+  const initialGuidedLevel = useMemo<GuidedBreathLevel>(() => {
+    const matched = findGuidedLevelByPresetLabel(sessionPreset.breathPreset.label)
+    return matched ?? GUIDED_BREATH_LEVELS[0]
+  }, [sessionPreset.breathPreset.label])
+
+  const [selectedGuidedLevelId, setSelectedGuidedLevelId] = useState<string>(initialGuidedLevel.id)
+  const selectedGuidedLevel = useMemo<GuidedBreathLevel>(
+    () =>
+      GUIDED_BREATH_LEVELS.find((entry) => entry.id === selectedGuidedLevelId)
+      ?? initialGuidedLevel,
+    [selectedGuidedLevelId, initialGuidedLevel],
+  )
+  const guidedPreset: BreathPreset = selectedGuidedLevel.preset
+
+  const [breathSecond, setBreathSecond] = useState(0)
+  const breathCycleSeconds = guidedPreset.cycleSeconds
 
   useEffect(() => {
     if (breathMode !== 'guided') return undefined
@@ -70,71 +128,245 @@ function NoviceBreathScreen({
     return () => window.clearInterval(breathId)
   }, [breathCycleSeconds, breathMode])
 
-  const inhaleBoundary = sessionPreset.breathPreset.inhaleSeconds
-  const holdBoundary = inhaleBoundary + sessionPreset.breathPreset.holdSeconds
+  const inhaleBoundary = guidedPreset.inhaleSeconds
+  const holdBoundary = inhaleBoundary + guidedPreset.holdSeconds
 
-  const guidedPhaseLabel =
+  const guidedPhaseLabel: ManualPhase =
     breathSecond < inhaleBoundary ? 'Inhale' : breathSecond < holdBoundary ? 'Hold' : 'Exhale'
-  const phaseLabel = breathMode === 'manual' ? manualPhase : guidedPhaseLabel
 
+  // ── Manual mode: open-ended count-up timers (user controls duration) ──
+  const [manualPhase, setManualPhase] = useState<ManualPhase | null>(null)
+  const [manualPhaseElapsedMs, setManualPhaseElapsedMs] = useState(0)
+  const manualPhaseStartRef = useRef<number | null>(null)
+  const manualPhaseStartedAtRef = useRef<string | null>(null)
+  const manualSessionStartRef = useRef<string | null>(null)
+  const manualSessionStartMsRef = useRef<number | null>(null)
+  const [manualPhaseLog, setManualPhaseLog] = useState<ManualPhaseLogEntry[]>([])
+  const manualPhaseLogRef = useRef<ManualPhaseLogEntry[]>([])
+  useEffect(() => {
+    manualPhaseLogRef.current = manualPhaseLog
+  }, [manualPhaseLog])
+
+  // Drives the live count-up label while a manual phase is active.
+  useEffect(() => {
+    if (breathMode !== 'manual' || manualPhase === null) return undefined
+
+    let frameId: number | null = null
+    const step = (timestamp: number) => {
+      const startMs = manualPhaseStartRef.current ?? timestamp
+      setManualPhaseElapsedMs(timestamp - startMs)
+      frameId = window.requestAnimationFrame(step)
+    }
+    frameId = window.requestAnimationFrame(step)
+
+    return () => {
+      if (frameId !== null) window.cancelAnimationFrame(frameId)
+    }
+  }, [breathMode, manualPhase])
+
+  const closeActiveManualPhase = useCallback(() => {
+    if (manualPhase === null || manualPhaseStartRef.current === null) return null
+
+    const elapsed = performance.now() - manualPhaseStartRef.current
+    if (elapsed < 250) {
+      manualPhaseStartRef.current = null
+      manualPhaseStartedAtRef.current = null
+      setManualPhase(null)
+      setManualPhaseElapsedMs(0)
+      return null
+    }
+
+    const entry: ManualPhaseLogEntry = {
+      index: manualPhaseLogRef.current.length + 1,
+      phase: manualPhase,
+      durationMs: Math.max(0, Math.round(elapsed)),
+      startedAt: manualPhaseStartedAtRef.current ?? new Date().toISOString(),
+    }
+
+    manualPhaseLogRef.current = [entry, ...manualPhaseLogRef.current]
+    setManualPhaseLog(manualPhaseLogRef.current)
+
+    manualPhaseStartRef.current = null
+    manualPhaseStartedAtRef.current = null
+    setManualPhase(null)
+    setManualPhaseElapsedMs(0)
+    return entry
+  }, [manualPhase])
+
+  const startManualPhase = useCallback(
+    (phase: ManualPhase) => {
+      primeAudioCues()
+      setBreathMode('manual')
+
+      // Tapping the same phase that's already running just closes it.
+      if (manualPhase === phase) {
+        closeActiveManualPhase()
+        return
+      }
+
+      // Switching to a different phase: close the previous one first.
+      if (manualPhase !== null) {
+        closeActiveManualPhase()
+      }
+
+      const now = performance.now()
+      const nowIso = new Date().toISOString()
+      manualPhaseStartRef.current = now
+      manualPhaseStartedAtRef.current = nowIso
+      setManualPhase(phase)
+      setManualPhaseElapsedMs(0)
+
+      if (manualSessionStartRef.current === null) {
+        manualSessionStartRef.current = nowIso
+        manualSessionStartMsRef.current = now
+      }
+
+      playAudioCue(phaseCueForName(phase))
+      breathPhaseFeedback(phase)
+    },
+    [manualPhase, closeActiveManualPhase],
+  )
+
+  const stopManualPhase = useCallback(() => {
+    closeActiveManualPhase()
+  }, [closeActiveManualPhase])
+
+  const resetManualSessionTracking = useCallback(() => {
+    setManualPhase(null)
+    setManualPhaseElapsedMs(0)
+    setManualPhaseLog([])
+    manualPhaseLogRef.current = []
+    manualPhaseStartRef.current = null
+    manualPhaseStartedAtRef.current = null
+    manualSessionStartRef.current = null
+    manualSessionStartMsRef.current = null
+  }, [])
+
+  const persistManualSession = useCallback(() => {
+    closeActiveManualPhase()
+    if (!onSaveSession) return
+    if (manualSessionStartRef.current === null || manualSessionStartMsRef.current === null) return
+
+    const elapsed = performance.now() - manualSessionStartMsRef.current
+    if (elapsed < MIN_BREATH_SAVE_DURATION_MS) return
+
+    const minutes = Math.max(1, Math.round(elapsed / 60000))
+    const log = manualPhaseLogRef.current.slice().reverse()
+    const startedAt = manualSessionStartRef.current
+    const endedAt = new Date().toISOString()
+    const inhaleCount = log.filter((entry) => entry.phase === 'Inhale').length
+    const holdCount = log.filter((entry) => entry.phase === 'Hold').length
+    const exhaleCount = log.filter((entry) => entry.phase === 'Exhale').length
+
+    void onSaveSession({
+      title: 'Manual breathwork session',
+      note: `${log.length} phases recorded (Inhale ${inhaleCount} / Hold ${holdCount} / Exhale ${exhaleCount}).`,
+      durationMinutes: minutes,
+      startedAt,
+      endedAt,
+      source: 'app',
+      metadata: {
+        kind: 'breathwork-manual',
+        breathPreset: 'manual-open-timer',
+        phaseLog: log.map((entry) => ({
+          index: entry.index,
+          phase: entry.phase,
+          durationMs: entry.durationMs,
+          startedAt: entry.startedAt,
+        })),
+        inhaleCount,
+        holdCount,
+        exhaleCount,
+      },
+    })
+
+    manualSessionStartRef.current = null
+    manualSessionStartMsRef.current = null
+  }, [onSaveSession, closeActiveManualPhase])
+
+  useEffect(() => {
+    return () => {
+      persistManualSession()
+    }
+  }, [persistManualSession])
+
+  const handleBackPress = useCallback(() => {
+    persistManualSession()
+    onBack()
+  }, [onBack, persistManualSession])
+
+  // ── Ring + label state ──
+  const phaseLabel: ManualPhase = breathMode === 'manual' ? manualPhase ?? 'Inhale' : guidedPhaseLabel
   const phaseRingClass =
     phaseLabel === 'Inhale'
       ? 'breath-inhale'
       : phaseLabel === 'Hold'
         ? 'breath-hold'
         : 'breath-exhale'
-  const phaseDurationSeconds =
-    phaseLabel === 'Inhale'
-      ? sessionPreset.breathPreset.inhaleSeconds
-      : phaseLabel === 'Hold'
-        ? sessionPreset.breathPreset.holdSeconds
-        : sessionPreset.breathPreset.exhaleSeconds
-  const phaseElapsedSeconds = breathMode === 'guided'
-    ? phaseLabel === 'Inhale'
+
+  const guidedPhaseDurationSeconds =
+    guidedPhaseLabel === 'Inhale'
+      ? guidedPreset.inhaleSeconds
+      : guidedPhaseLabel === 'Hold'
+        ? guidedPreset.holdSeconds
+        : guidedPreset.exhaleSeconds
+  const guidedElapsedSeconds =
+    guidedPhaseLabel === 'Inhale'
       ? breathSecond
-      : phaseLabel === 'Hold'
+      : guidedPhaseLabel === 'Hold'
         ? breathSecond - inhaleBoundary
         : breathSecond - holdBoundary
-    : 0
-  const phaseProgress =
-    breathMode === 'guided' && phaseDurationSeconds > 0
-      ? Math.min(phaseElapsedSeconds / phaseDurationSeconds, 1)
-      : 1
-  const phaseRemainingSeconds = Math.max(phaseDurationSeconds - phaseElapsedSeconds, 0)
+  const guidedRemainingSeconds = Math.max(guidedPhaseDurationSeconds - guidedElapsedSeconds, 0)
 
-  const previousPhaseRef = useRef<string>(phaseLabel)
+  const phaseProgress = breathMode === 'guided'
+    ? guidedPhaseDurationSeconds > 0
+      ? Math.min(Math.max(guidedElapsedSeconds / guidedPhaseDurationSeconds, 0), 1)
+      : 0
+    : manualPhase === null
+      ? 0
+      : 1
+
+  const previousGuidedPhaseRef = useRef<string>(guidedPhaseLabel)
   useEffect(() => {
-    if (previousPhaseRef.current === phaseLabel) return
-    previousPhaseRef.current = phaseLabel
-    playAudioCue(phaseCueForName(phaseLabel))
-    breathPhaseFeedback(phaseLabel)
-  }, [phaseLabel])
+    if (breathMode !== 'guided') return
+    if (previousGuidedPhaseRef.current === guidedPhaseLabel) return
+    previousGuidedPhaseRef.current = guidedPhaseLabel
+    playAudioCue(phaseCueForName(guidedPhaseLabel))
+    breathPhaseFeedback(guidedPhaseLabel)
+  }, [guidedPhaseLabel, breathMode])
+
+  const detailLabel =
+    breathMode === 'guided'
+      ? `${Math.ceil(guidedRemainingSeconds)}s`
+      : manualPhase === null
+        ? 'Tap to start'
+        : formatPhaseDuration(manualPhaseElapsedMs)
 
   const breathCue = useMemo(() => {
     if (health.stressLevel > 55 || health.breathPerMinute > 18) {
       return 'Use a slower exhale and stay here until your breath rate settles.'
     }
-
     return 'Markers are steady. Use this tab before or after your next block to stay controlled.'
   }, [health.breathPerMinute, health.stressLevel])
+
+  const totalManualPhases = manualPhaseLog.length
+  const totalManualDurationMs = manualPhaseLog.reduce((sum, entry) => sum + entry.durationMs, 0)
 
   return (
     <section className="screen-shell">
       <div className="top-chrome">
-        <button type="button" className="round-icon-btn" onClick={onBack} aria-label="Back">
+        <button type="button" className="round-icon-btn" onClick={handleBackPress} aria-label="Back">
           <BackIcon />
         </button>
         <button
           type="button"
           className="round-icon-btn"
-          aria-label="Restart breath cycle"
+          aria-label="Reset breath session"
           onClick={() => {
             tapFeedback()
             primeAudioCues()
             setBreathSecond(0)
-            setManualPhase('Inhale')
-            playAudioCue('inhale')
-            breathPhaseFeedback('Inhale')
+            resetManualSessionTracking()
           }}
         >
           <BreathIcon />
@@ -146,7 +378,7 @@ function NoviceBreathScreen({
           <p className="section-kicker">Breath Cadence</p>
           <h2 className="section-title mt-2">BreathWork</h2>
           <p className="support-copy mt-2">
-            Guided mode follows your active session preset, while manual mode gives direct inhale/exhale control.
+            Guided mode walks you through a research-backed cadence at your chosen level. Manual mode runs open-ended timers for each phase you tap.
           </p>
 
           <div className="button-row button-row--2 mt-4">
@@ -155,7 +387,9 @@ function NoviceBreathScreen({
               className={`secondary-btn ${breathMode === 'guided' ? 'primary-btn-strong' : ''}`}
               onClick={() => {
                 primeAudioCues()
+                stopManualPhase()
                 setBreathMode('guided')
+                setBreathSecond(0)
                 playAudioCue(phaseCueForName(guidedPhaseLabel))
                 breathPhaseFeedback(guidedPhaseLabel)
               }}
@@ -168,79 +402,148 @@ function NoviceBreathScreen({
               onClick={() => {
                 primeAudioCues()
                 setBreathMode('manual')
-                playAudioCue(phaseCueForName(manualPhase))
-                breathPhaseFeedback(manualPhase)
               }}
             >
               Manual
             </button>
           </div>
 
-          <div className="mt-8 grid place-items-center breath-orb-wrap">
+          <div className="mt-6 grid place-items-center breath-orb-wrap">
             <BreathCadenceRing
-              phaseLabel={phaseLabel}
+              phaseLabel={breathMode === 'manual' && manualPhase === null ? 'Manual' : phaseLabel}
               progress={phaseProgress}
               phaseClassName={phaseRingClass}
-              detailLabel={breathMode === 'guided' ? `${Math.ceil(phaseRemainingSeconds)}s` : `${phaseDurationSeconds}s`}
+              detailLabel={detailLabel}
             />
           </div>
 
-          <div className="mt-6 grid grid-cols-3 gap-3 text-center">
-            <div className="glass-card-compact breath-phase-tile cinema-surface cinema-surface--sub">
-              <p className="label-text">Inhale</p>
-              <p className="mt-2 text-[1.05rem] text-[var(--text-primary)]">{sessionPreset.breathPreset.inhaleSeconds}s</p>
-            </div>
-            <div className="glass-card-compact breath-phase-tile cinema-surface cinema-surface--sub">
-              <p className="label-text">Hold</p>
-              <p className="mt-2 text-[1.05rem] text-[var(--text-primary)]">{sessionPreset.breathPreset.holdSeconds}s</p>
-            </div>
-            <div className="glass-card-compact breath-phase-tile cinema-surface cinema-surface--sub">
-              <p className="label-text">Exhale</p>
-              <p className="mt-2 text-[1.05rem] text-[var(--text-primary)]">{sessionPreset.breathPreset.exhaleSeconds}s</p>
-            </div>
-          </div>
+          {breathMode === 'guided' ? (
+            <>
+              <div className="mt-6 grid grid-cols-3 gap-3 text-center">
+                <div className="glass-card-compact breath-phase-tile cinema-surface cinema-surface--sub">
+                  <p className="label-text">Inhale</p>
+                  <p className="mt-2 text-[1.05rem] text-[var(--text-primary)]">{guidedPreset.inhaleSeconds}s</p>
+                </div>
+                <div className="glass-card-compact breath-phase-tile cinema-surface cinema-surface--sub">
+                  <p className="label-text">Hold</p>
+                  <p className="mt-2 text-[1.05rem] text-[var(--text-primary)]">{guidedPreset.holdSeconds}s</p>
+                </div>
+                <div className="glass-card-compact breath-phase-tile cinema-surface cinema-surface--sub">
+                  <p className="label-text">Exhale</p>
+                  <p className="mt-2 text-[1.05rem] text-[var(--text-primary)]">{guidedPreset.exhaleSeconds}s</p>
+                </div>
+              </div>
 
-          {breathMode === 'manual' ? (
-            <div className="button-row mt-5">
-              <button
-                type="button"
-                className={`secondary-btn ${phaseLabel === 'Inhale' ? 'primary-btn-strong' : ''}`}
-                onClick={() => {
-                  primeAudioCues()
-                  setManualPhase('Inhale')
-                  playAudioCue('inhale')
-                  breathPhaseFeedback('Inhale')
-                }}
-              >
-                Inhale
-              </button>
-              <button
-                type="button"
-                className={`secondary-btn ${phaseLabel === 'Hold' ? 'primary-btn-strong' : ''}`}
-                onClick={() => {
-                  primeAudioCues()
-                  setManualPhase('Hold')
-                  playAudioCue('hold')
-                  breathPhaseFeedback('Hold')
-                }}
-              >
-                Hold
-              </button>
-              <button
-                type="button"
-                className={`secondary-btn ${phaseLabel === 'Exhale' ? 'primary-btn-strong' : ''}`}
-                onClick={() => {
-                  primeAudioCues()
-                  setManualPhase('Exhale')
-                  playAudioCue('exhale')
-                  breathPhaseFeedback('Exhale')
-                }}
-              >
-                Exhale
-              </button>
-            </div>
-          ) : null}
+              <div className="mt-5">
+                <p className="label-text">Guided level</p>
+                <p className="support-copy mt-1">{selectedGuidedLevel.description}</p>
+                <p className="mt-1 text-xs text-[var(--text-dim)]">Source: {selectedGuidedLevel.source}</p>
+                <select
+                  className="login-input mt-3"
+                  value={selectedGuidedLevelId}
+                  onChange={(event) => {
+                    primeAudioCues()
+                    setSelectedGuidedLevelId(event.target.value)
+                    setBreathSecond(0)
+                  }}
+                  aria-label="Guided breath level"
+                >
+                  {GUIDED_BREATH_LEVELS.map((entry) => (
+                    <option key={entry.id} value={entry.id}>
+                      {entry.label} ({entry.preset.inhaleSeconds}-{entry.preset.holdSeconds}-{entry.preset.exhaleSeconds})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="button-row mt-5">
+                <button
+                  type="button"
+                  className={`secondary-btn ${manualPhase === 'Inhale' ? 'primary-btn-strong' : ''}`}
+                  onClick={() => startManualPhase('Inhale')}
+                >
+                  Inhale
+                </button>
+                <button
+                  type="button"
+                  className={`secondary-btn ${manualPhase === 'Hold' ? 'primary-btn-strong' : ''}`}
+                  onClick={() => startManualPhase('Hold')}
+                >
+                  Hold
+                </button>
+                <button
+                  type="button"
+                  className={`secondary-btn ${manualPhase === 'Exhale' ? 'primary-btn-strong' : ''}`}
+                  onClick={() => startManualPhase('Exhale')}
+                >
+                  Exhale
+                </button>
+              </div>
+              <div className="button-row button-row--2 mt-3">
+                <button
+                  type="button"
+                  className="secondary-btn"
+                  onClick={stopManualPhase}
+                  disabled={manualPhase === null}
+                >
+                  Stop phase
+                </button>
+                <button
+                  type="button"
+                  className="secondary-btn"
+                  onClick={() => {
+                    tapFeedback()
+                    persistManualSession()
+                    resetManualSessionTracking()
+                  }}
+                  disabled={manualPhaseLog.length === 0 && manualPhase === null}
+                >
+                  Save &amp; reset
+                </button>
+              </div>
+              <div className="mt-3 flex items-center justify-between text-sm text-[var(--text-muted)]">
+                <span>
+                  Phases: <span className="hud-font text-[var(--text-secondary)]">{totalManualPhases}</span>
+                </span>
+                <span>
+                  Total: <span className="hud-font text-[var(--text-secondary)]">{formatPhaseDuration(totalManualDurationMs)}</span>
+                </span>
+              </div>
+            </>
+          )}
         </article>
+
+        {breathMode === 'manual' && (
+          <article className="glass-sheet">
+            <div className="info-row">
+              <div>
+                <p className="title-font text-[1.2rem] font-medium text-[var(--text-primary)]">Phase log</p>
+                <p className="support-copy mt-1">
+                  {manualPhaseLog.length === 0
+                    ? 'Tap Inhale, Hold, or Exhale to start a phase. Tap again or pick another phase to record.'
+                    : 'Most recent phase is at the top. Saved automatically when you go back.'}
+                </p>
+              </div>
+              <p className="metric-number-soft text-[1.45rem]">{totalManualPhases}</p>
+            </div>
+
+            {manualPhaseLog.length > 0 && (
+              <div className="mt-4 max-h-44 space-y-2 overflow-y-auto pr-1">
+                {manualPhaseLog.map((entry) => (
+                  <div
+                    key={`${entry.index}-${entry.startedAt}`}
+                    className="glass-card-compact lap-memory-tile flex items-center justify-between text-sm"
+                  >
+                    <span className="text-[var(--text-secondary)]">#{entry.index} {entry.phase}</span>
+                    <span className="hud-font text-[var(--accent-deep)]">{formatPhaseDuration(entry.durationMs)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </article>
+        )}
 
         <article className="glass-sheet breath-marker-sheet cinema-surface">
           <div className="info-row">
@@ -248,7 +551,9 @@ function NoviceBreathScreen({
               <p className="title-font text-[1.35rem] font-medium text-[var(--text-primary)]">Breath Markers</p>
               <p className="support-copy mt-1">{breathCue}</p>
             </div>
-            <div className="dashboard-status-chip">{sessionPreset.breathPreset.label}</div>
+            <div className="dashboard-status-chip">
+              {breathMode === 'guided' ? selectedGuidedLevel.label : 'Manual'}
+            </div>
           </div>
 
           <div className="metric-chip-grid mt-4">
@@ -268,10 +573,12 @@ function ProtocolBreathScreen({
   health,
   breathworkMode,
   onBack,
+  onSaveSession,
 }: {
   health: HealthMetrics
   breathworkMode: BreathworkMode
   onBack: () => void
+  onSaveSession?: (session: SessionSavePayload) => Promise<void> | void
 }) {
   const [selectedProtocol, setSelectedProtocol] = useState<BreathProtocol | null>(null)
   const [isActive, setIsActive] = useState(false)
@@ -279,6 +586,8 @@ function ProtocolBreathScreen({
   const [phaseElapsedMs, setPhaseElapsedMs] = useState(0)
   const [currentRound, setCurrentRound] = useState(1)
   const [isComplete, setIsComplete] = useState(false)
+  const protocolStartedAtRef = useRef<string | null>(null)
+  const protocolStartedMsRef = useRef<number | null>(null)
 
   const protocol = selectedProtocol
   const phase = protocol ? protocol.phases[currentPhaseIndex] : null
@@ -346,11 +655,43 @@ function ProtocolBreathScreen({
   }, [isActive, phase, currentPhaseIndex, currentRound])
 
   useEffect(() => {
-    if (isComplete) {
-      playAudioCue('breath-complete')
-      successFeedback()
+    if (!isComplete) return
+    playAudioCue('breath-complete')
+    successFeedback()
+
+    if (!onSaveSession || !selectedProtocol) return
+    if (protocolStartedAtRef.current === null || protocolStartedMsRef.current === null) return
+
+    const elapsed = performance.now() - protocolStartedMsRef.current
+    if (elapsed < MIN_BREATH_SAVE_DURATION_MS) {
+      protocolStartedAtRef.current = null
+      protocolStartedMsRef.current = null
+      return
     }
-  }, [isComplete])
+
+    const minutes = Math.max(1, Math.round(elapsed / 60000))
+    const startedAt = protocolStartedAtRef.current
+    const endedAt = new Date().toISOString()
+
+    void onSaveSession({
+      title: `${selectedProtocol.label} breathwork`,
+      note: `${breathworkMode.label} protocol completed.`,
+      durationMinutes: minutes,
+      startedAt,
+      endedAt,
+      source: 'app',
+      metadata: {
+        kind: 'breathwork-protocol',
+        modeId: breathworkMode.id,
+        protocolId: selectedProtocol.id,
+        rounds: selectedProtocol.rounds,
+        phases: selectedProtocol.phases.map((p) => ({ name: p.name, durationSeconds: p.durationSeconds })),
+      },
+    })
+
+    protocolStartedAtRef.current = null
+    protocolStartedMsRef.current = null
+  }, [isComplete, onSaveSession, selectedProtocol, breathworkMode])
 
   const handleStart = () => {
     tapFeedback()
@@ -361,6 +702,8 @@ function ProtocolBreathScreen({
     setCurrentRound(1)
     setIsComplete(false)
     setIsActive(true)
+    protocolStartedAtRef.current = new Date().toISOString()
+    protocolStartedMsRef.current = performance.now()
   }
 
   const handleStop = () => {
@@ -452,7 +795,7 @@ function ProtocolBreathScreen({
             <div className="safety-banner mt-3">{selectedProtocol.safetyWarning}</div>
           )}
 
-          <div className="mt-8 grid place-items-center breath-orb-wrap">
+          <div className="mt-6 grid place-items-center breath-orb-wrap">
             <BreathCadenceRing
               phaseLabel={isComplete ? 'Done' : phase?.name ?? 'Ready'}
               progress={phaseProgress}
