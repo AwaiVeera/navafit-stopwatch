@@ -18,10 +18,13 @@ interface EmailAuthResult {
 const providerMap: Record<SocialAuthProvider, Provider> = {
   apple: 'apple',
   google: 'google',
+  facebook: 'facebook',
 }
 
 export function getProviderLabel(provider: SocialAuthProvider) {
-  return provider === 'apple' ? 'Apple' : 'Google'
+  if (provider === 'apple') return 'Apple'
+  if (provider === 'google') return 'Google'
+  return 'Facebook'
 }
 
 export function isAuthRedirectUrl(url: string) {
@@ -72,6 +75,20 @@ export async function submitEmailAuth({
   return {
     message: 'Account created. Check your email to confirm before signing in.',
     hasSession: false,
+  }
+}
+
+export async function requestPasswordReset(email: string): Promise<void> {
+  if (!supabase) {
+    throw new Error('Supabase is not configured yet.')
+  }
+
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: getAuthRedirectUrl(),
+  })
+
+  if (error) {
+    throw error
   }
 }
 
@@ -213,4 +230,16 @@ export function formatAuthError(error: unknown) {
   }
 
   return message || fallbackMessage
+}
+
+export async function signOutCurrentUser(): Promise<void> {
+  if (!supabase) {
+    return
+  }
+
+  const { error } = await supabase.auth.signOut()
+
+  if (error) {
+    throw error
+  }
 }

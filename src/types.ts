@@ -1,6 +1,6 @@
 export type ViewId = 'login' | 'onboarding' | 'consent' | 'dashboard' | 'pre-session' | 'stopwatch' | 'breath' | 'biometrics' | 'ay' | 'settings'
 export type EmailAuthMode = 'sign-in' | 'sign-up'
-export type SocialAuthProvider = 'apple' | 'google'
+export type SocialAuthProvider = 'apple' | 'google' | 'facebook'
 export type WorkoutSource = 'app' | 'apple_health' | 'apple_watch' | 'garmin_connect'
 export type TelemetrySource = WorkoutSource | 'weather'
 export type DeviceProvider = 'apple_health' | 'apple_watch' | 'garmin_connect'
