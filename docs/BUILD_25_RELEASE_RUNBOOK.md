@@ -55,7 +55,7 @@ Filename kept as-is (`BUILD_25_RELEASE_RUNBOOK.md`) to preserve git history; the
 
 ## B) Xcode release steps (do these in order)
 
-1. Open the project: `npm run ios:open` (or open `ios/App/App.xcworkspace` directly in Xcode).
+1. Open the project: `npm run ios:open` (or open `ios/App/App.xcodeproj` directly in Xcode — this is an SPM-based Capacitor project, so there is no `.xcworkspace`; command-line builds use `xcodebuild -project ios/App/App.xcodeproj -scheme App`).
 2. In Xcode left sidebar, click the blue `App` project icon, then under **TARGETS** click `App`. Open the **General** tab.
 3. In **Identity**, confirm:
    - Version = `1.0.3`
