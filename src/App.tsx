@@ -62,7 +62,7 @@ import {
 } from './services/presets'
 import { supportsNativeHealthSync, writeSessionToAppleHealth } from './services/health'
 import { getSupabaseSetupMessage, isSupabaseConfigured, supabase, usesNativeAuthRedirect } from './services/supabase'
-import { getAuthBackend, getFirebaseSetupMessage, isFirebaseConfigured } from './services/firebase'
+import { getAuthBackend, getFirebaseSetupMessage, isFirebaseConfigured } from './services/firebase-config'
 import { createInitialTelemetryState, fetchLiveWeatherSnapshot, syncTelemetry } from './services/telemetry'
 import { hasAcceptedCurrentLegalVersions } from './legal'
 import type {

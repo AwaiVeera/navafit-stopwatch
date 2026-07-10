@@ -12,34 +12,17 @@ import { getFunctions, type Functions } from 'firebase/functions'
  * See docs/FIREBASE_PROVISIONING_GUIDE.md for how to fill the values.
  */
 
-const env = import.meta.env
+import {
+  firebaseWebConfig as rawConfig,
+  getFirebaseSetupMessage,
+  isFirebaseConfigured,
+} from './firebase-config'
 
-const rawConfig = {
-  apiKey: env.VITE_FIREBASE_API_KEY?.trim(),
-  authDomain: env.VITE_FIREBASE_AUTH_DOMAIN?.trim(),
-  projectId: env.VITE_FIREBASE_PROJECT_ID?.trim(),
-  storageBucket: env.VITE_FIREBASE_STORAGE_BUCKET?.trim(),
-  messagingSenderId: env.VITE_FIREBASE_MESSAGING_SENDER_ID?.trim(),
-  appId: env.VITE_FIREBASE_APP_ID?.trim(),
-  measurementId: env.VITE_FIREBASE_MEASUREMENT_ID?.trim() || undefined,
-}
-
-const REQUIRED_KEYS: Array<keyof typeof rawConfig> = [
-  'apiKey',
-  'authDomain',
-  'projectId',
-  'appId',
-]
-
-const missing = REQUIRED_KEYS.filter((key) => !rawConfig[key])
-
-export const isFirebaseConfigured = missing.length === 0
-
-export function getFirebaseSetupMessage(): string {
-  if (isFirebaseConfigured) return ''
-  const names = missing.map((k) => `VITE_FIREBASE_${k.replace(/([A-Z])/g, '_$1').toUpperCase()}`)
-  return `Add ${names.join(', ')} to .env.local, then restart the app.`
-}
+// Re-exported so existing consumers (perplexity.ts's dynamic import of this
+// module) keep working. Modules on the live Supabase path must import these
+// from ./firebase-config directly to avoid pulling in the SDK.
+export { getFirebaseSetupMessage, isFirebaseConfigured }
+export { getAuthBackend, type AuthBackend } from './firebase-config'
 
 let cachedApp: FirebaseApp | null = null
 let cachedAuth: Auth | null = null
@@ -90,13 +73,3 @@ export function getFirebaseFunctions(): Functions | null {
   return cachedFunctions
 }
 
-/**
- * Feature flag used during the staged Supabase -> Firebase cutover.
- * Defaults to 'supabase' so the live app is unaffected by these additions.
- */
-export type AuthBackend = 'supabase' | 'firebase'
-
-export function getAuthBackend(): AuthBackend {
-  const value = env.VITE_AUTH_BACKEND?.trim().toLowerCase()
-  return value === 'firebase' ? 'firebase' : 'supabase'
-}
