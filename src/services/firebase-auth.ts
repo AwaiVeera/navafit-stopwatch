@@ -11,10 +11,12 @@ import { FirebaseAuthentication } from '@capacitor-firebase/authentication'
 import {
   createUserWithEmailAndPassword,
   deleteUser,
+  sendPasswordResetEmail,
   signInWithCredential,
   signInWithEmailAndPassword,
   signInWithPopup,
   signOut,
+  FacebookAuthProvider,
   GoogleAuthProvider,
   OAuthProvider,
   type Auth,
@@ -38,7 +40,9 @@ interface EmailAuthResult {
 }
 
 export function getProviderLabel(provider: SocialAuthProvider): string {
-  return provider === 'apple' ? 'Apple' : 'Google'
+  if (provider === 'apple') return 'Apple'
+  if (provider === 'google') return 'Google'
+  return 'Facebook'
 }
 
 /**
@@ -82,6 +86,11 @@ export async function submitEmailAuth({
   }
 }
 
+export async function requestPasswordReset(email: string): Promise<void> {
+  const auth = requireAuth()
+  await sendPasswordResetEmail(auth, email)
+}
+
 export async function startSocialAuth(provider: SocialAuthProvider): Promise<void> {
   const auth = requireAuth()
 
@@ -96,6 +105,17 @@ export async function startSocialAuth(provider: SocialAuthProvider): Promise<voi
       }
       const googleCred = GoogleAuthProvider.credential(idToken, credential?.accessToken ?? undefined)
       await signInWithCredential(auth, googleCred)
+      return
+    }
+
+    if (provider === 'facebook') {
+      const { credential } = await FirebaseAuthentication.signInWithFacebook()
+      const accessToken = credential?.accessToken
+      if (!accessToken) {
+        throw new Error('Facebook sign-in returned no access token.')
+      }
+      const facebookCred = FacebookAuthProvider.credential(accessToken)
+      await signInWithCredential(auth, facebookCred)
       return
     }
 
@@ -116,6 +136,10 @@ export async function startSocialAuth(provider: SocialAuthProvider): Promise<voi
   // Web: popup flow.
   if (provider === 'google') {
     await signInWithPopup(auth, new GoogleAuthProvider())
+    return
+  }
+  if (provider === 'facebook') {
+    await signInWithPopup(auth, new FacebookAuthProvider())
     return
   }
   const appleProvider = new OAuthProvider('apple.com')
@@ -208,4 +232,9 @@ export function formatAuthError(error: unknown): string {
   }
 
   return message || fallbackMessage
+}
+
+export async function signOutCurrentUser(): Promise<void> {
+  const auth = requireAuth()
+  await signOut(auth)
 }
