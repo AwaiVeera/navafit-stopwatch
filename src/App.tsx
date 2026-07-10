@@ -625,7 +625,6 @@ function App() {
     setTelemetry((previous) => ({
       ...previous,
       healthApp: previous.healthApp === 'unavailable' ? 'unavailable' : 'syncing',
-      fitnessWatch: previous.fitnessWatch === 'unavailable' ? 'unavailable' : 'syncing',
       weather: previous.weather === 'unavailable' ? 'unavailable' : 'syncing',
     }))
 
@@ -927,10 +926,6 @@ function App() {
     setBreathworkLevel(level)
   }, [])
 
-  const handleDisconnectWatch = useCallback(() => {
-    setTelemetry((prev) => ({ ...prev, fitnessWatch: 'idle' as const }))
-  }, [])
-
   return (
     <div className="app-root relative overflow-hidden text-[var(--text-primary)]">
       <div className="pointer-events-none absolute inset-0 app-backdrop" />
@@ -1066,8 +1061,6 @@ function App() {
                   isSigningOut={isAuthBusy}
                   health={health}
                   healthAppStatus={telemetry.healthApp}
-                  watchStatus={telemetry.fitnessWatch}
-                  onDisconnectWatch={handleDisconnectWatch}
                   isTelemetrySyncing={isTelemetrySyncing}
                   onSyncTelemetry={handleTelemetrySync}
                   consentRecord={consentRecord}

@@ -2,8 +2,12 @@ import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'com.navafit.alignment',
-  appName: 'NavaFitAlignment',
-  webDir: 'dist'
-};
+  appName: 'NavaFit Alignment',
+  webDir: 'dist',
+  android: {
+    allowMixedContent: false,
+    webContentsDebuggingEnabled: false,
+  },
+}
 
-export default config;
+export default config

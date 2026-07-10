@@ -62,7 +62,7 @@ export function LoginScreen({
               />
             ) : (
               <div className="login-hero-logo flex items-center justify-center">
-                <span style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '2rem', fontWeight: 600, color: '#8a9a4a' }}>N</span>
+                <span style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '2rem', fontWeight: 600, color: 'var(--accent-primary)' }}>N</span>
               </div>
             )}
             <p className="login-hero-brand">NavaFit</p>
@@ -70,32 +70,44 @@ export function LoginScreen({
             <p className="login-hero-tagline">Art Of Tactical Flowmentum</p>
           </div>
 
-          {/* ── Stat cards ── */}
-          <div className="login-stat-row">
-            <div className="login-stat-card">
-              <p className="login-stat-label">Discipline</p>
-              <p className="login-stat-value">Kalari · Gadah</p>
-            </div>
-            <div className="login-stat-card">
-              <p className="login-stat-label">Method</p>
-              <p className="login-stat-value">Breathwork</p>
-            </div>
-          </div>
-
-          {/* ── Auth form ── */}
-          <form onSubmit={handleSubmit} className="login-form-sheet">
-            {!isSupabaseConfigured && (
-              <div
-                className="rounded-xl border border-[rgba(157,109,109,0.35)] bg-[rgba(157,109,109,0.12)] p-3 text-left text-sm"
-                role="alert"
+          {/* ── SSO row (moved above email form: most existing users use these) ── */}
+          <div className="login-form-sheet">
+            <div className="login-sso-row">
+              <button
+                type="button"
+                className="sso-btn"
+                onClick={() => void onSocialAuth('apple')}
+                disabled={isFormDisabled}
               >
-                <p className="font-medium" style={{ color: '#e2e8d4' }}>Login is turned off in this build</p>
-                <p className="mt-2 text-[0.82rem]" style={{ color: '#7a8a60' }}>{getSupabaseSetupMessage()}</p>
-              </div>
-            )}
+                <AppleIcon />
+                Continue with Apple
+              </button>
+              <button
+                type="button"
+                className="sso-btn"
+                onClick={() => void onSocialAuth('google')}
+                disabled={isFormDisabled}
+              >
+                <GoogleIcon />
+                Continue with Google
+              </button>
+            </div>
+            <div className="login-divider" aria-hidden>
+              <span>or</span>
+            </div>
 
-            <div>
-              <p className="login-label">Access mode</p>
+            <form onSubmit={handleSubmit} className="login-inner-form">
+              {!isSupabaseConfigured && (
+                <div
+                  className="rounded-xl border border-[color:var(--danger-soft)]/40 p-3 text-left text-sm"
+                  style={{ background: 'color-mix(in srgb, var(--danger-soft) 12%, transparent)' }}
+                  role="alert"
+                >
+                  <p className="font-medium" style={{ color: 'var(--text-primary)' }}>Login is turned off in this build</p>
+                  <p className="mt-2 text-[0.82rem]" style={{ color: 'var(--text-muted)' }}>{getSupabaseSetupMessage()}</p>
+                </div>
+              )}
+
               <div className="login-mode-toggle">
                 <button
                   type="button"
@@ -114,76 +126,53 @@ export function LoginScreen({
                   Create Account
                 </button>
               </div>
-            </div>
 
-            <div>
-              <label className="login-label" htmlFor="login-email">Email</label>
-              <input
-                id="login-email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                className="login-input"
-                placeholder="name@example.com"
-                autoComplete="email"
-                disabled={isFormDisabled}
-              />
-            </div>
-
-            <div>
-              <label className="login-label" htmlFor="login-password">Password</label>
-              <input
-                id="login-password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                className="login-input"
-                placeholder="••••••••"
-                autoComplete={mode === 'sign-in' ? 'current-password' : 'new-password'}
-                disabled={isFormDisabled}
-              />
-            </div>
-
-            <button type="submit" disabled={isFormDisabled} className="primary-btn primary-btn-strong w-full justify-center">
-              {submitLabel}
-            </button>
-
-            {statusText && (
-              <div
-                className={`login-status-card ${authError ? '' : ''}`}
-                style={{ color: authError ? '#c47a7a' : '#8a9a6a' }}
-                aria-live="polite"
-              >
-                {statusText}
+              <div>
+                <label className="login-label" htmlFor="login-email">Email</label>
+                <input
+                  id="login-email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  className="login-input"
+                  placeholder="name@example.com"
+                  autoComplete="email"
+                  disabled={isFormDisabled}
+                />
               </div>
-            )}
-          </form>
 
-          {/* ── SSO ── */}
-          <div className="login-form-sheet">
-            <p className="login-label">Continue with</p>
-            <div className="login-sso-row">
-              <button
-                type="button"
-                className="login-sso-btn"
-                onClick={() => void onSocialAuth('apple')}
-                disabled={isFormDisabled}
-              >
-                <AppleIcon />
-                Apple
+              <div>
+                <label className="login-label" htmlFor="login-password">Password</label>
+                <input
+                  id="login-password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  className="login-input"
+                  placeholder="••••••••"
+                  autoComplete={mode === 'sign-in' ? 'current-password' : 'new-password'}
+                  disabled={isFormDisabled}
+                />
+              </div>
+
+              <button type="submit" disabled={isFormDisabled} className="primary-btn primary-btn-strong w-full justify-center">
+                {submitLabel}
               </button>
-              <button
-                type="button"
-                className="login-sso-btn"
-                onClick={() => void onSocialAuth('google')}
-                disabled={isFormDisabled}
-              >
-                <GoogleIcon />
-                Google
-              </button>
-            </div>
+
+              {statusText && (
+                <div
+                  className="login-status-card"
+                  style={{
+                    color: authError ? 'var(--danger-soft)' : 'var(--text-secondary)',
+                  }}
+                  aria-live="polite"
+                >
+                  {statusText}
+                </div>
+              )}
+            </form>
           </div>
 
         </div>

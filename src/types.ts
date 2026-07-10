@@ -40,12 +40,10 @@ export interface WeatherSnapshot {
 
 export interface TelemetryState {
   healthApp: SyncStatus
-  fitnessWatch: SyncStatus
   weather: SyncStatus
   weatherSnapshot: WeatherSnapshot
   lastSyncLabel: string
   healthSourceLabel: string
-  watchSourceLabel: string
 }
 
 export type InsightDomain = 'training' | 'recovery' | 'sync'

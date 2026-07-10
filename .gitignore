@@ -31,3 +31,32 @@ coverage
 *.njsproj
 *.sln
 *.sw?
+
+# Android build + signing
+android/local.properties
+android/.gradle/
+android/app/build/
+android/build/
+android/keystore.properties
+android/app/*.jks
+
+# iOS build artifacts (Capacitor cap run creates ios/DerivedData)
+ios/DerivedData/
+ios/App/build/
+ios/App/Pods/
+
+# Firebase Cloud Functions build output + local deps
+functions/node_modules/
+functions/lib/
+functions/firebase-debug.log
+functions/firebase-debug.*.log
+
+# xcodebuild archive/export outputs
+build/App.xcarchive/
+build/export/
+
+# IPA diagnostic unpack (created ad-hoc during store build audits)
+build/_diag/
+
+# Superpowers brainstorming companion (mockup scratch space)
+.superpowers/

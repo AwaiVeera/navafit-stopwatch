@@ -1,6 +1,10 @@
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
+import { Browser } from '@capacitor/browser'
+import { Capacitor } from '@capacitor/core'
 
+import { ScreenPager, ScreenPage } from '../components/ScreenPager'
 import { getAudioVolume, setAudioVolume } from '../services/audio-cues'
+import { getStoredTheme, setTheme, type ThemeMode } from '../services/theme'
 import type { HealthMetrics, SyncStatus, UserConsentRecord } from '../types'
 
 interface SettingsScreenProps {
@@ -9,8 +13,6 @@ interface SettingsScreenProps {
   isSigningOut: boolean
   health: HealthMetrics
   healthAppStatus: SyncStatus
-  watchStatus: SyncStatus
-  onDisconnectWatch: () => void
   isTelemetrySyncing: boolean
   onSyncTelemetry: () => void
   consentRecord: UserConsentRecord | null
@@ -25,8 +27,6 @@ export function SettingsScreen({
   isSigningOut,
   health,
   healthAppStatus,
-  watchStatus,
-  onDisconnectWatch,
   isTelemetrySyncing,
   onSyncTelemetry,
   consentRecord,
@@ -35,15 +35,13 @@ export function SettingsScreen({
   onDeleteAccount,
 }: SettingsScreenProps) {
   const [volume, setVolume] = useState(() => getAudioVolume())
+  const [theme, setThemeState] = useState<ThemeMode>(() => getStoredTheme())
   const [healthSync, setHealthSync] = useState(Boolean(consentRecord?.acceptedHealthSyncAt))
   const [usageAnalytics, setUsageAnalytics] = useState(Boolean(consentRecord?.acceptedUsageAnalyticsAt))
-  const [watchAnimating, setWatchAnimating] = useState(false)
-  const [isDisconnecting, setIsDisconnecting] = useState(false)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [deleteConfirmText, setDeleteConfirmText] = useState('')
   const [isDeleting, setIsDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState('')
-  const watchAnimRef = useRef<number | null>(null)
   const [prevConsentRecord, setPrevConsentRecord] = useState(consentRecord)
   if (prevConsentRecord !== consentRecord) {
     setPrevConsentRecord(consentRecord)
@@ -51,27 +49,15 @@ export function SettingsScreen({
     setUsageAnalytics(Boolean(consentRecord?.acceptedUsageAnalyticsAt))
   }
 
-  useEffect(() => {
-    return () => {
-      if (watchAnimRef.current !== null) window.clearTimeout(watchAnimRef.current)
-    }
-  }, [])
-
   const handleVolumeChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const value = parseFloat(event.target.value)
     setVolume(value)
     setAudioVolume(value)
   }
 
-  const handleDisconnectWatch = () => {
-    setWatchAnimating(true)
-    setIsDisconnecting(true)
-    if (watchAnimRef.current !== null) window.clearTimeout(watchAnimRef.current)
-    watchAnimRef.current = window.setTimeout(() => {
-      setWatchAnimating(false)
-      setIsDisconnecting(false)
-      onDisconnectWatch()
-    }, 480)
+  const handleThemeSelect = (next: ThemeMode) => {
+    setThemeState(next)
+    setTheme(next)
   }
 
   const handleHealthSyncToggle = async () => {
@@ -121,187 +107,210 @@ export function SettingsScreen({
     setIsDeleteDialogOpen(false)
   }
 
-  const watchConnected = watchStatus === 'ready'
-  const watchLabel = watchStatus === 'ready' ? 'Connected' : watchStatus === 'syncing' ? 'Syncing…' : watchStatus === 'unavailable' ? 'Unavailable' : 'Disconnected'
+  const isAndroidNative = Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android'
+  const healthProviderLabel = isAndroidNative ? 'Health Connect' : 'Apple Health'
+  const shouldShowInstallHealthConnect =
+    isAndroidNative && (healthAppStatus === 'unavailable' || healthAppStatus === 'error')
 
   const stepsUnavailableCopy =
     healthAppStatus === 'unavailable'
-      ? 'Apple Health steps are only available in the native iPhone app.'
+      ? isAndroidNative
+        ? 'Health Connect is not installed or not available yet. Install it, then tap Sync.'
+        : 'Apple Health steps are only available in the native iPhone app.'
       : !healthSync
-        ? 'Turn on Apple Health sync below to load today’s steps.'
+        ? `Turn on ${healthProviderLabel} sync below to load today’s steps.`
         : healthAppStatus === 'error'
-          ? 'Health sync hit an error. Tap Sync below to try again.'
-          : 'Tap Sync below to refresh. If steps stay blank, open the Health app and allow Steps for NavaFit.'
+          ? `${healthProviderLabel} sync hit an error. Tap Sync below to try again.`
+          : `Tap Sync below to refresh. If steps stay blank, open ${healthProviderLabel} and allow Steps for NavaFit.`
+
+  const handleInstallHealthConnect = async () => {
+    await Browser.open({
+      url: 'https://play.google.com/store/apps/details?id=com.google.android.apps.healthdata',
+    })
+  }
 
   return (
-    <section className="screen-shell settings-screen">
+    <section className="screen-shell settings-screen screen-shell--paged">
       <div className="top-chrome">
         <p className="title-font text-[1.4rem] font-semibold text-[var(--text-primary)]">Settings</p>
       </div>
 
-      <div className="content-stack space-y-4">
-
-        {/* ── Account ── */}
-        <section className="glass-sheet cinema-surface space-y-4">
-          <p className="label-text">Account</p>
-          <div className="info-row items-center">
-            <div>
-              <p className="title-font text-[1.05rem] font-medium text-[var(--text-primary)]">{accountEmail}</p>
-              <p className="support-copy mt-1">Supabase session active</p>
-            </div>
-            <button
-              type="button"
-              className="secondary-btn"
-              onClick={onSignOut}
-              disabled={isSigningOut}
-            >
-              {isSigningOut ? 'Signing out…' : 'Sign out'}
-            </button>
-          </div>
-        </section>
-
-        {/* ── Daily activity (profile) ── */}
-        <section className="glass-sheet cinema-surface space-y-4" aria-labelledby="daily-activity-heading">
-          <p id="daily-activity-heading" className="label-text">
-            Daily activity
-          </p>
-          <div className="space-y-3">
-            <div>
-              <p className="title-font text-[1.05rem] font-medium text-[var(--text-primary)]">Steps walked today</p>
-              {health.stepsToday !== null ? (
-                <p className="hud-font mt-1 text-2xl tabular-nums text-[var(--accent-primary)]">
-                  {health.stepsToday.toLocaleString()}
-                </p>
-              ) : (
-                <p className="support-copy mt-1">{stepsUnavailableCopy}</p>
-              )}
-            </div>
-            <p className="support-copy rounded-xl border border-white/10 bg-white/5 px-3 py-2.5">
-              Drink enough water throughout the day.
-            </p>
-          </div>
-        </section>
-
-        {/* ── Sound ── */}
-        <section className="glass-sheet cinema-surface space-y-4">
-          <div className="info-row">
-            <p className="label-text">Sound</p>
-            <p className="hud-font text-sm text-[var(--accent-primary)]">{Math.round(volume * 100)}%</p>
-          </div>
-          <div className="settings-slider-row">
-            <SoftIcon />
-            <input
-              type="range"
-              min="0"
-              max="1"
-              step="0.01"
-              value={volume}
-              onChange={handleVolumeChange}
-              className="settings-volume-slider"
-              aria-label="Audio volume"
-            />
-            <LoudIcon />
-          </div>
-          <p className="support-copy">
-            Controls bell rings, chimes, and breathwork hymn volume.
-          </p>
-        </section>
-
-        {/* ── Apple Watch ── */}
-        <section className="glass-sheet cinema-surface space-y-4">
-          <p className="label-text">Apple Watch</p>
-          <div className="info-row items-center">
-            <div className="flex items-center gap-3">
-              <div className={`watch-status-dot ${watchConnected ? 'watch-status-dot--connected' : 'watch-status-dot--disconnected'} ${watchAnimating ? 'watch-status-dot--animating' : ''}`} />
+      <ScreenPager ariaLabel="Settings">
+        {/* Page 1 — Account + activity */}
+        <ScreenPage className="screen-page--scroll">
+          <section className="glass-sheet cinema-surface space-y-4">
+            <p className="label-text">Account</p>
+            <div className="info-row items-center">
               <div>
-                <p className="title-font text-[1.05rem] font-medium text-[var(--text-primary)]">{watchLabel}</p>
-                <p className="support-copy mt-0.5">
-                  {watchConnected ? 'Health data flowing in' : 'Pair via Apple Health app'}
-                </p>
+                <p className="title-font text-[1.05rem] font-medium text-[var(--text-primary)]">{accountEmail}</p>
+                <p className="support-copy mt-1">Supabase session active</p>
               </div>
-            </div>
-            {watchConnected && (
               <button
                 type="button"
-                className={`secondary-btn ${watchAnimating ? 'settings-btn--shake' : ''}`}
-                onClick={handleDisconnectWatch}
-                disabled={isDisconnecting}
+                className="secondary-btn"
+                onClick={onSignOut}
+                disabled={isSigningOut}
               >
-                {isDisconnecting ? 'Disconnecting…' : 'Disconnect'}
+                {isSigningOut ? 'Signing out…' : 'Sign out'}
               </button>
-            )}
-          </div>
-        </section>
-
-        {/* ── Sync ── */}
-        <section className="glass-sheet cinema-surface space-y-4">
-          <div className="info-row">
-            <p className="label-text">Sync & Privacy</p>
-            <button
-              type="button"
-              onClick={onSyncTelemetry}
-              disabled={isTelemetrySyncing}
-              className="round-icon-btn-soft"
-              aria-label="Sync now"
-            >
-              <SyncIcon spinning={isTelemetrySyncing} />
-            </button>
-          </div>
-
-          <ToggleRow
-            label="Apple Health Sync"
-            description="Read heart rate, steps, workouts, and readiness from Apple Health"
-            checked={healthSync}
-            onChange={() => void handleHealthSyncToggle()}
-          />
-
-          <ToggleRow
-            label="Usage Analytics"
-            description="Help improve NavaFit with anonymous screen and feature usage data"
-            checked={usageAnalytics}
-            onChange={() => void handleAnalyticsToggle()}
-          />
-        </section>
-
-        {/* ── Biometrics ── */}
-        <section className="glass-sheet cinema-surface">
-          <button
-            type="button"
-            className="info-row w-full text-left"
-            onClick={onOpenBiometrics}
-          >
-            <div>
-              <p className="title-font text-[1.05rem] font-medium text-[var(--text-primary)]">Biometrics</p>
-              <p className="support-copy mt-1">Body report, recovery score, and readiness metrics</p>
             </div>
-            <ChevronIcon />
-          </button>
-        </section>
+          </section>
 
-        {/* ── Danger zone ── */}
-        <section className="glass-sheet cinema-surface space-y-3" aria-labelledby="danger-zone-heading">
-          <p id="danger-zone-heading" className="label-text">
-            Danger zone
-          </p>
-          <div className="info-row items-center">
-            <div className="flex-1 pr-3">
-              <p className="title-font text-[1.05rem] font-medium text-[var(--text-primary)]">Delete account</p>
-              <p className="support-copy mt-1">
-                Permanently removes your NavaFit account, sessions, and synced health data. This cannot be undone.
+          <section className="glass-sheet cinema-surface space-y-4" aria-labelledby="daily-activity-heading">
+            <p id="daily-activity-heading" className="label-text">
+              Daily activity
+            </p>
+            <div className="space-y-3">
+              <div>
+                <p className="title-font text-[1.05rem] font-medium text-[var(--text-primary)]">Steps walked today</p>
+                {health.stepsToday !== null ? (
+                  <p className="hud-font mt-1 text-2xl tabular-nums text-[var(--accent-primary)]">
+                    {health.stepsToday.toLocaleString()}
+                  </p>
+                ) : (
+                  <p className="support-copy mt-1">{stepsUnavailableCopy}</p>
+                )}
+              </div>
+              <p className="support-copy rounded-xl border border-white/10 bg-white/5 px-3 py-2.5">
+                Drink enough water throughout the day.
               </p>
             </div>
+          </section>
+        </ScreenPage>
+
+        {/* Page 2 — Sound + Appearance */}
+        <ScreenPage className="screen-page--scroll">
+          <section className="glass-sheet cinema-surface space-y-4">
+            <div className="info-row">
+              <p className="label-text">Sound</p>
+              <p className="hud-font text-sm text-[var(--accent-primary)]">{Math.round(volume * 100)}%</p>
+            </div>
+            <div className="settings-slider-row">
+              <SoftIcon />
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.01"
+                value={volume}
+                onChange={handleVolumeChange}
+                className="settings-volume-slider"
+                aria-label="Audio volume"
+              />
+              <LoudIcon />
+            </div>
+            <p className="support-copy">
+              Controls bell rings, chimes, and breathwork hymn volume.
+            </p>
+          </section>
+
+          <section className="glass-sheet cinema-surface space-y-4">
+            <p className="label-text">Appearance</p>
+            <div className="theme-toggle-group" role="group" aria-label="App theme">
+              <button
+                type="button"
+                className={`theme-toggle-option ${theme === 'dark' ? 'theme-toggle-option--active' : ''}`}
+                aria-pressed={theme === 'dark'}
+                onClick={() => handleThemeSelect('dark')}
+              >
+                Cosmic dark
+              </button>
+              <button
+                type="button"
+                className={`theme-toggle-option ${theme === 'light' ? 'theme-toggle-option--active' : ''}`}
+                aria-pressed={theme === 'light'}
+                onClick={() => handleThemeSelect('light')}
+              >
+                White screen
+              </button>
+            </div>
+            <p className="support-copy">
+              Switch between the cosmic dark theme and a bright white screen mode.
+            </p>
+          </section>
+        </ScreenPage>
+
+        {/* Page 3 — Sync & privacy */}
+        <ScreenPage className="screen-page--scroll">
+          <section className="glass-sheet cinema-surface space-y-4">
+            <div className="info-row">
+              <p className="label-text">Sync & Privacy</p>
+              <button
+                type="button"
+                onClick={onSyncTelemetry}
+                disabled={isTelemetrySyncing}
+                className="round-icon-btn-soft"
+                aria-label="Sync now"
+              >
+                <SyncIcon spinning={isTelemetrySyncing} />
+              </button>
+            </div>
+
+            <ToggleRow
+              label={`${healthProviderLabel} Sync`}
+              description={`Read heart rate, steps, workouts, and readiness from ${healthProviderLabel}`}
+              checked={healthSync}
+              onChange={() => void handleHealthSyncToggle()}
+            />
+
+            <ToggleRow
+              label="Usage Analytics"
+              description="Help improve NavaFit with anonymous screen and feature usage data"
+              checked={usageAnalytics}
+              onChange={() => void handleAnalyticsToggle()}
+            />
+
+            {shouldShowInstallHealthConnect && (
+              <button
+                type="button"
+                className="secondary-btn"
+                onClick={() => void handleInstallHealthConnect()}
+              >
+                Install Health Connect
+              </button>
+            )}
+          </section>
+        </ScreenPage>
+
+        {/* Page 4 — Biometrics + danger zone */}
+        <ScreenPage className="screen-page--scroll">
+          <section className="glass-sheet cinema-surface">
             <button
               type="button"
-              className="settings-danger-btn"
-              onClick={openDeleteDialog}
-              disabled={isDeleting}
+              className="info-row w-full text-left"
+              onClick={onOpenBiometrics}
             >
-              Delete
+              <div>
+                <p className="title-font text-[1.05rem] font-medium text-[var(--text-primary)]">Biometrics</p>
+                <p className="support-copy mt-1">Body report, recovery score, and readiness metrics</p>
+              </div>
+              <ChevronIcon />
             </button>
-          </div>
-        </section>
+          </section>
 
-      </div>
+          <section className="glass-sheet cinema-surface space-y-3" aria-labelledby="danger-zone-heading">
+            <p id="danger-zone-heading" className="label-text">
+              Danger zone
+            </p>
+            <div className="info-row items-center">
+              <div className="flex-1 pr-3">
+                <p className="title-font text-[1.05rem] font-medium text-[var(--text-primary)]">Delete account</p>
+                <p className="support-copy mt-1">
+                  Permanently removes your NavaFit account, sessions, and synced health data. This cannot be undone.
+                </p>
+              </div>
+              <button
+                type="button"
+                className="settings-danger-btn"
+                onClick={openDeleteDialog}
+                disabled={isDeleting}
+              >
+                Delete
+              </button>
+            </div>
+          </section>
+        </ScreenPage>
+      </ScreenPager>
 
       {isDeleteDialogOpen && (
         <div

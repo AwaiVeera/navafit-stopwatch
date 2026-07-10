@@ -102,7 +102,7 @@ export function ConsentScreen({
               checked={acceptsHealthSync}
               onChange={(event) => setAcceptsHealthSync(event.target.checked)}
             />
-            <span>Allow Apple Health and Apple Watch data to personalize future session presets.</span>
+            <span>Allow Apple Health data to personalize future session presets.</span>
           </label>
 
           <label className="consent-row">

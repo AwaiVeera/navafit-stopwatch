@@ -13,11 +13,16 @@
     "cap:init": "cap init NavaFitAlignment com.navafit.alignment --web-dir=dist",
     "cap:sync": "npm run build:web && cap sync",
     "ios:open": "cap open ios",
+    "ios:run": "npm run cap:sync && cap run ios",
+    "android:open": "cap open android",
+    "android:run": "npm run cap:sync && cap run android",
     "asset:font:sync": "node scripts/sync-font-asset.mjs",
     "setup:optional:brew": "bash scripts/optional-homebrew-pathway.sh",
     "verify:production": "npm run lint && npm test && npm run build"
   },
   "dependencies": {
+    "@capacitor-firebase/authentication": "^8.3.0",
+    "@capacitor/android": "^8.3.4",
     "@capacitor/app": "^8.0.1",
     "@capacitor/browser": "^8.0.2",
     "@capacitor/cli": "^8.2.0",
@@ -28,6 +33,7 @@
     "@capgo/capacitor-health": "^8.4.2",
     "@supabase/supabase-js": "^2.99.2",
     "@tailwindcss/vite": "^4.2.1",
+    "firebase": "^12.15.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "tailwindcss": "^4.2.1"

@@ -1,5 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
+import { ScreenPager, ScreenPage } from '../components/ScreenPager'
 import type { AudioCue } from '../services/audio-cues'
 import { playAudioCue, primeAudioCues } from '../services/audio-cues'
 import { breathPhaseFeedback, successFeedback, tapFeedback } from '../utils/feedback'
@@ -353,7 +354,7 @@ function NoviceBreathScreen({
   const totalManualDurationMs = manualPhaseLog.reduce((sum, entry) => sum + entry.durationMs, 0)
 
   return (
-    <section className="screen-shell">
+    <section className="screen-shell screen-shell--paged">
       <div className="top-chrome">
         <button type="button" className="round-icon-btn" onClick={handleBackPress} aria-label="Back">
           <BackIcon />
@@ -373,7 +374,8 @@ function NoviceBreathScreen({
         </button>
       </div>
 
-      <div className="content-stack space-y-4">
+      <ScreenPager ariaLabel="BreathWork">
+        <ScreenPage className="screen-page--scroll">
         <article className="glass-sheet breath-primary-sheet">
           <p className="section-kicker">Breath Cadence</p>
           <h2 className="section-title mt-2">BreathWork</h2>
@@ -514,7 +516,9 @@ function NoviceBreathScreen({
             </>
           )}
         </article>
+        </ScreenPage>
 
+        <ScreenPage className="screen-page--scroll">
         {breathMode === 'manual' && (
           <article className="glass-sheet">
             <div className="info-row">
@@ -562,7 +566,8 @@ function NoviceBreathScreen({
             <MetricChip label="Stress" value={`${health.stressLevel}%`} />
           </div>
         </article>
-      </div>
+        </ScreenPage>
+      </ScreenPager>
     </section>
   )
 }

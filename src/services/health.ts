@@ -55,7 +55,9 @@ export interface NativeHealthSyncResult {
 }
 
 export function supportsNativeHealthSync() {
-  return Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'ios'
+  if (!Capacitor.isNativePlatform()) return false
+  const platform = Capacitor.getPlatform()
+  return platform === 'ios' || platform === 'android'
 }
 
 export function deriveHealthMetricsFromHealthKit({
@@ -192,9 +194,6 @@ export async function syncNativeHealth(fallbackHealth: HealthMetrics): Promise<N
   const recentSleepMinutes = sumSleepMinutes(sleepResult.samples)
   const importedWorkouts = workoutsResult.workouts.map((workout) => toImportedWorkout(workout))
   const recentWorkoutMinutes = importedWorkouts.reduce((total, workout) => total + workout.durationMinutes, 0)
-  const hasAppleWatchSource = workoutsResult.workouts.some(isAppleWatchWorkout)
-    || heartRateResult.samples.some(isAppleWatchSample)
-    || respiratoryRateResult.samples.some(isAppleWatchSample)
 
   const derivedHealth = deriveHealthMetricsFromHealthKit({
     fallbackHealth,
@@ -231,29 +230,20 @@ export async function syncNativeHealth(fallbackHealth: HealthMetrics): Promise<N
     },
   ]
 
-  if (hasAppleWatchSource) {
-    deviceConnections.push({
-      provider: 'apple_watch',
-      status: 'active',
-      scopes: ['healthkit-ingested'],
-      lastSyncedAt,
-    })
-  }
-
   return {
-    source: hasAppleWatchSource ? 'apple_watch' : 'apple_health',
+    source: 'apple_health',
     health,
     importedWorkouts,
     deviceConnections,
     lastSyncedAt,
-    providerLabel: hasAppleWatchSource ? 'Apple Watch via HealthKit' : 'Apple Health',
+    providerLabel: 'Apple Health',
     summary: `Synced Apple Health metrics and ${importedWorkouts.length} recent workout${importedWorkouts.length === 1 ? '' : 's'}.`,
     permissionError,
   }
 }
 
 function toImportedWorkout(workout: Workout): SessionSavePayload {
-  const source = isAppleWatchWorkout(workout) ? 'apple_watch' : 'apple_health'
+  const source: WorkoutSource = 'apple_health'
   const durationMinutes = Math.max(1, Math.round(workout.duration / 60))
   const sourceLabel = workout.sourceName?.trim() || 'Apple Health'
 
@@ -311,14 +301,6 @@ function sumSleepMinutes(samples: HealthSample[]) {
 
     return total + sample.value
   }, 0)
-}
-
-function isAppleWatchWorkout(workout: Workout) {
-  return /watch/i.test(`${workout.sourceName ?? ''} ${workout.sourceId ?? ''}`)
-}
-
-function isAppleWatchSample(sample: HealthSample) {
-  return /watch/i.test(`${sample.sourceName ?? ''} ${sample.sourceId ?? ''}`)
 }
 
 function averageOrFallback(values: Array<number | null>, fallback: number) {

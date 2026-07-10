@@ -19,7 +19,6 @@ const baseHealth: HealthMetrics = {
 
 const baseTelemetry: TelemetryState = {
   healthApp: 'ready',
-  fitnessWatch: 'ready',
   weather: 'ready',
   weatherSnapshot: {
     condition: 'Clear',
@@ -28,7 +27,6 @@ const baseTelemetry: TelemetryState = {
   },
   lastSyncLabel: 'Synced 09:00',
   healthSourceLabel: 'Apple Health',
-  watchSourceLabel: 'Apple Watch',
 }
 
 const baseLogs: WorkoutLog[] = [

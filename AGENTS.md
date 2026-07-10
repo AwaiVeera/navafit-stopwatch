@@ -30,9 +30,9 @@ This file defines how multi-agent work should run for this project.
    - verification commands run
    - unresolved `TBD` values
 4. Lead runs final verification:
-   - `npm run build`
+   - `npm run verify:production`
    - `npm run cap:sync`
-   - `xcodebuild -project ios/App/App.xcodeproj -scheme App -destination "generic/platform=iOS Simulator" build`
+   - Capacitor CLI run: `npm run ios:run` and `npm run android:run` (Xcode/`xcodebuild` only for archive + signing)
 
 ## 4) Communication Contract
 

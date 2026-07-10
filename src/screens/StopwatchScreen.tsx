@@ -1,5 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
+import { ScreenPager, ScreenPage } from '../components/ScreenPager'
 import { playAudioCue, primeAudioCues } from '../services/audio-cues'
 import { hapticLap, hapticStartPause } from '../services/haptics'
 import { computeLapSplits, formatStopwatch } from '../services/stopwatch'
@@ -346,7 +347,7 @@ function StopwatchScreenInner({
   const lapRemainingMs = isAutoLap ? Math.max(0, lapDurationMs - lapElapsedMs) : 0
 
   return (
-    <section className="screen-shell">
+    <section className="screen-shell screen-shell--paged">
       <div className="top-chrome">
         <button type="button" className="round-icon-btn" onClick={handleBack} aria-label="Back">
           <BackIcon />
@@ -354,15 +355,14 @@ function StopwatchScreenInner({
         <div className="dashboard-status-chip">{stopwatchMode.label}</div>
       </div>
 
-      <div className="content-stack space-y-4">
+      <ScreenPager ariaLabel="Stopwatch">
+        <ScreenPage className="screen-page--scroll">
         <article className="glass-sheet stopwatch-primary-sheet">
           <p className="section-kicker">Precision Chronometer</p>
           <h2 className="section-title mt-2">{sessionPreset.title}</h2>
           <p className="support-copy mt-2">{sessionPreset.summary}</p>
 
           <div className="stopwatch-timer-well mt-6 px-5 py-6">
-            <div className="card-media-strip card-media-strip-stopwatch" aria-hidden />
-
             {autoLapPhase === 'rest' ? (
               <div className="stopwatch-rest-overlay">
                 <p className="hud-font text-[1.4rem] text-[var(--text-secondary)]">Rest</p>
@@ -421,8 +421,6 @@ function StopwatchScreenInner({
             </div>
           </div>
 
-          <div className="card-media-strip card-media-strip-stopwatch-metrics mt-4" aria-hidden />
-
           <div className="metric-chip-grid mt-4">
             <MetricChip label="Weather" value={weatherLabel} />
             <MetricChip label="Heart Rate" value={`${heartRate} BPM`} />
@@ -478,7 +476,9 @@ function StopwatchScreenInner({
             </div>
           )}
         </article>
+        </ScreenPage>
 
+        <ScreenPage className="screen-page--scroll">
         <article ref={lapsRef} className="glass-sheet stopwatch-lap-sheet min-h-28 cinema-surface">
           <div className="info-row">
             <div>
@@ -505,7 +505,8 @@ function StopwatchScreenInner({
             )}
           </div>
         </article>
-      </div>
+        </ScreenPage>
+      </ScreenPager>
     </section>
   )
 }

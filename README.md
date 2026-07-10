@@ -1,27 +1,21 @@
-# NavaFit Alignment - Stopwatch Prototype
+# NavaFit Alignment
 
-React + TypeScript + Tailwind + Capacitor iOS prototype.
+React 19 + TypeScript + Tailwind v4 + Capacitor 8 app for iOS and Android (live on the App Store; Android launch in progress).
 
-## What This Prototype Includes
+## What This App Includes
 
-1. `App` view router with 4 main screens.
-2. `LoginScreen` with tactical style, Rise button, and SSO placeholders.
-3. `DashboardScreen` with health cards, progress tracker, and logs.
-4. `StopwatchScreen` with:
-   - precision centisecond timer
-   - lap memory list
-   - 4-2-4 breath sync tile
-5. `BiometricsScreen` with:
-   - Bluetooth handshake simulation
-   - recovery metrics panel
-   - hydration alert placeholder
-6. Capacitor iOS project scaffold at `ios/`.
+Screens (`src/screens/`): `LoginScreen`, `OnboardingScreen`, `ConsentScreen`, `DashboardScreen`, `PreSessionScreen`, `StopwatchScreen`, `BreathScreen`, `BiometricsScreen`, `AYScreen` (AI chat assistant), `SettingsScreen`. Navigation is a single `useState<ViewId>` switch in `src/App.tsx` with a 5-tab bottom nav.
 
-## Run Web Prototype
+- Email/Apple/Google auth, onboarding, and legal consent flow.
+- Stopwatch: manual timer plus an auto-lap/interval training mode with level unlocks.
+- Breathwork: guided/manual novice sessions plus round-based intermediate/advanced protocols.
+- Apple Health / Android Health Connect sync (steps, heart rate, sleep, workouts) via `@capgo/capacitor-health`.
+- Weather via Open-Meteo, AI-derived recovery/session recommendations via a local deterministic engine.
+- Backend: **Supabase is currently live** (`src/services/auth.ts`, `data.ts`). A parallel Firebase implementation (`src/services/firebase-auth.ts`, `firestore-data.ts`, `functions/`) is built and staged behind the `VITE_AUTH_BACKEND` flag but not yet cut over — see `docs/FIREBASE_MIGRATION_RUNBOOK.md`.
+
+## Run Web Dev Server
 
 ```bash
-export PATH="$HOME/.local/bin:$PATH"
-cd ~/Desktop/navafit-stopwatch
 npm install
 npm run dev
 ```
@@ -32,11 +26,21 @@ npm run dev
 npm run build
 ```
 
-## Sync and Open iOS Project
+## Run on Device/Simulator (Capacitor CLI first)
+
+```bash
+# iOS (build web, sync, launch on simulator/device)
+npm run ios:run
+
+# Android
+npm run android:run
+```
+
+Open the native IDE only when you need to (signing, archive):
 
 ```bash
 npm run cap:sync
-npx cap open ios
+npm run ios:open      # or: npm run android:open
 ```
 
 ## Important Blocker
@@ -50,16 +54,13 @@ sudo xcodebuild -runFirstLaunch
 
 ## Asset Note
 
-`Font.png` is requested in design notes.
-Login hero now uses fallback order:
+Browser + iOS Home Screen icons live in `public/`:
 
-1. `public/Font.png`
-2. `public/font.png`
-3. `public/Assets/Font.png`
-4. `public/assets/Font.png`
-5. built-in `public/font-fallback.svg`
+1. `public/favicon.png` (1024×1024 source, referenced by `index.html`)
+2. `public/favicon-32.png` (32×32 for browser tab)
+3. `public/apple-touch-icon.png` (180×180 for iOS Home Screen)
 
-To auto-copy from the desktop `Assets` folder if available:
+To auto-copy the 1024×1024 source from the desktop `Assets` folder if available:
 
 ```bash
 npm run asset:font:sync

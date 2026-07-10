@@ -17,7 +17,6 @@ import type {
 
 interface DeviceCapabilities {
   healthApp: boolean
-  fitnessWatch: boolean
   weather: boolean
 }
 
@@ -28,7 +27,6 @@ export function createInitialTelemetryState(): TelemetryState {
 
   return {
     healthApp: capabilities.healthApp ? 'idle' : 'unavailable',
-    fitnessWatch: capabilities.fitnessWatch ? 'idle' : 'unavailable',
     weather: capabilities.weather ? 'idle' : 'unavailable',
     weatherSnapshot: {
       condition: 'Not synced',
@@ -37,7 +35,6 @@ export function createInitialTelemetryState(): TelemetryState {
     },
     lastSyncLabel: 'Not synced yet',
     healthSourceLabel: capabilities.healthApp ? 'Waiting for consent' : 'Native health unavailable',
-    watchSourceLabel: 'Watch not connected',
   }
 }
 
@@ -45,7 +42,6 @@ export function buildSyncErrorTelemetry(previousTelemetry: TelemetryState, messa
   return {
     ...previousTelemetry,
     healthApp: 'error',
-    fitnessWatch: previousTelemetry.fitnessWatch === 'unavailable' ? 'unavailable' : 'error',
     weather: previousTelemetry.weather === 'unavailable' ? 'unavailable' : 'ready',
     lastSyncLabel: message,
   }
@@ -131,18 +127,10 @@ export async function syncTelemetry({
               : capabilities.healthApp
                 ? 'idle'
                 : 'unavailable',
-        fitnessWatch: nativeHealthSync.deviceConnections.some((connection) => connection.provider === 'apple_watch')
-          ? 'ready'
-          : capabilities.fitnessWatch
-            ? 'idle'
-            : 'unavailable',
         weather: capabilities.weather ? 'ready' : 'unavailable',
         weatherSnapshot,
         lastSyncLabel: syncLabel,
         healthSourceLabel: nativeHealthSync.providerLabel,
-        watchSourceLabel: nativeHealthSync.deviceConnections.some((connection) => connection.provider === 'apple_watch')
-          ? 'Apple Watch'
-          : 'Watch not connected',
       },
       deviceConnections: nativeHealthSync.deviceConnections,
       importedWorkouts: savedWorkouts,
@@ -184,7 +172,6 @@ function detectCapabilities(): DeviceCapabilities {
 
   return {
     healthApp: platformHasCapacitor,
-    fitnessWatch: platformHasCapacitor,
     weather,
   }
 }

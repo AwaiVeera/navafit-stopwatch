@@ -1,0 +1,67 @@
+rules_version = '2';
+
+// NavaFit Alignment - Firestore security rules.
+// Model: owner-scoped documents under users/{uid}/**.
+// Server-only collections (rate limits) deny all client access.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    // Owner-scoped root profile doc.
+    match /users/{uid} {
+      allow read, write: if isOwner(uid);
+
+      // Consent history (append-friendly; only the owner reads or writes).
+      match /consents/{docId} {
+        allow read, write: if isOwner(uid);
+      }
+
+      // Device connections (Apple Health etc.).
+      match /deviceConnections/{provider} {
+        allow read, write: if isOwner(uid);
+      }
+
+      // Workout sessions (create/read/update by owner; do not allow client delete
+      // to preserve audit trail — deletion happens via deleteMyAccount function).
+      match /workoutSessions/{sessionId} {
+        allow read: if isOwner(uid);
+        allow create, update: if isOwner(uid);
+        allow delete: if false;
+      }
+
+      // Telemetry snapshots (owner read/create; no updates or deletes).
+      match /telemetrySnapshots/{snapshotId} {
+        allow read: if isOwner(uid);
+        allow create: if isOwner(uid);
+        allow update, delete: if false;
+      }
+
+      // Sync events (create-only for the client; server maintains history).
+      match /syncEvents/{eventId} {
+        allow read: if isOwner(uid);
+        allow create: if isOwner(uid);
+        allow update, delete: if false;
+      }
+
+      // Usage analytics events (create-only when the user has consented).
+      match /usageEvents/{eventId} {
+        allow read: if isOwner(uid);
+        allow create: if isOwner(uid);
+        allow update, delete: if false;
+      }
+    }
+
+    // Rate-limit counters are server-only (Cloud Functions with Admin SDK).
+    match /_rateLimits/{uid} {
+      allow read, write: if false;
+    }
+  }
+}
