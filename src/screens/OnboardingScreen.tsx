@@ -72,45 +72,42 @@ export function OnboardingScreen({
   }
 
   return (
-    <section className="screen-shell justify-center">
-      <div className="content-stack my-auto space-y-4">
-        <section className="hero-surface hero-surface-login">
-          <div className="login-hero-copy">
-            <p className="section-kicker">Onboarding</p>
-            <h1 className="section-title mt-3">Set up your training profile</h1>
-            <p className="support-copy mt-3">
-              Signed in as {accountEmail}. Add your baseline data so NavaFit can structure session timing with better
-              personalization.
-            </p>
-          </div>
+    <section className="screen-shell justify-center dq-root">
+      <div className="content-stack my-auto space-y-4 w-full">
+        <div className="flex flex-col items-center gap-2 text-center">
+          <div className="dq-brand-static">N</div>
+          <p className="dq-heading">Set up your training profile</p>
+          <p className="dq-support-copy">
+            Signed in as {accountEmail}. Add your baseline data so NavaFit can structure session timing with better
+            personalization.
+          </p>
+        </div>
 
-          <div className="glass-card">
-            <p className="label-text">Profile baseline</p>
-            <p className="mt-3 text-sm leading-relaxed text-[var(--text-secondary)]">
-              This profile is used for timer recommendations and can be updated later.
-            </p>
-          </div>
-        </section>
-
-        <section className="glass-sheet space-y-4">
-          <div className="info-row">
+        <section className="dq-sheet dq-sheet-flat space-y-4">
+          <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="title-font text-[1.25rem] font-medium text-[var(--text-primary)]">Required profile fields</p>
-              <p className="support-copy mt-1">Enter your current baseline values.</p>
+              <p className="dq-heading" style={{ fontSize: '1rem' }}>Required profile fields</p>
+              <p className="dq-support-copy mt-1">Enter your current baseline values.</p>
             </div>
-            <button type="button" className="secondary-btn" onClick={() => void onSignOut()} disabled={isSaving}>
+            <button
+              type="button"
+              className="dq-btn dq-btn-sso"
+              style={{ width: 'auto' }}
+              onClick={() => void onSignOut()}
+              disabled={isSaving}
+            >
               Sign out
             </button>
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
-            <label className="glass-card text-left">
-              <p className="label-text">Age (years)</p>
+            <label className="dq-field text-left">
+              <span className="dq-label">Age (years)</span>
               <input
                 type="number"
                 min={13}
                 max={90}
-                className="matte-input mt-3"
+                className="dq-input"
                 value={ageYears}
                 onChange={(event) => setAgeYears(event.target.value)}
                 placeholder="28"
@@ -118,13 +115,13 @@ export function OnboardingScreen({
               />
             </label>
 
-            <label className="glass-card text-left">
-              <p className="label-text">Height (cm)</p>
+            <label className="dq-field text-left">
+              <span className="dq-label">Height (cm)</span>
               <input
                 type="number"
                 min={120}
                 max={240}
-                className="matte-input mt-3"
+                className="dq-input"
                 value={heightCm}
                 onChange={(event) => setHeightCm(event.target.value)}
                 placeholder="178"
@@ -132,13 +129,13 @@ export function OnboardingScreen({
               />
             </label>
 
-            <label className="glass-card text-left">
-              <p className="label-text">Weight (kg)</p>
+            <label className="dq-field text-left">
+              <span className="dq-label">Weight (kg)</span>
               <input
                 type="number"
                 min={35}
                 max={250}
-                className="matte-input mt-3"
+                className="dq-input"
                 value={weightKg}
                 onChange={(event) => setWeightKg(event.target.value)}
                 placeholder="74"
@@ -146,13 +143,13 @@ export function OnboardingScreen({
               />
             </label>
 
-            <label className="glass-card text-left">
-              <p className="label-text">Training days per week</p>
+            <label className="dq-field text-left">
+              <span className="dq-label">Training days per week</span>
               <input
                 type="number"
                 min={1}
                 max={7}
-                className="matte-input mt-3"
+                className="dq-input"
                 value={trainingDaysPerWeek}
                 onChange={(event) => setTrainingDaysPerWeek(event.target.value)}
                 placeholder="3"
@@ -162,20 +159,20 @@ export function OnboardingScreen({
           </div>
 
           {localError ? (
-            <div className="glass-card-compact text-sm text-[var(--danger-soft)]" aria-live="polite">
+            <div className="dq-status dq-status-error" aria-live="polite">
               {localError}
             </div>
           ) : null}
 
           {error ? (
-            <div className="glass-card-compact text-sm text-[var(--danger-soft)]" aria-live="polite">
+            <div className="dq-status dq-status-error" aria-live="polite">
               {error}
             </div>
           ) : null}
 
           <button
             type="button"
-            className="primary-btn primary-btn-strong w-full justify-center"
+            className="dq-btn dq-btn-primary"
             disabled={!canSubmit}
             onClick={() => void handleSubmit()}
           >
