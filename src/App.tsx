@@ -23,25 +23,32 @@ import {
   formatAuthError,
   getProviderLabel,
   isAuthRedirectUrl,
+  normalizeSupabaseSession,
+  requestPasswordReset,
+  signOutCurrentUser,
   startSocialAuth,
   submitEmailAuth,
-} from './services/auth'
+  subscribeToFirebaseAuthChanges,
+  type AppSession,
+} from './services/auth-backend'
 import { resolveAuthenticatedView } from './services/app-flow'
 import {
   ensureProfile,
+  loadPersistedAppState,
+  saveOnboardingProfile,
+  upsertUserConsent,
+} from './services/data-backend'
+import {
   loadCloudProgression,
   loadLocalOnboardingProfile,
   loadLocalProgression,
   loadLocalWorkoutCache,
-  loadPersistedAppState,
   mergeProgressions,
   recordAppUsageEvent,
   saveCloudProgression,
   saveLocalProgression,
-  saveOnboardingProfile,
   saveLocalWorkoutCache,
   saveWorkoutSession,
-  upsertUserConsent,
 } from './services/data'
 import { BREATHWORK_MODES, getBreathworkMode } from './services/breath-protocols'
 import { getStopwatchMode, STOPWATCH_MODES } from './services/stopwatch-modes'
@@ -55,6 +62,7 @@ import {
 } from './services/presets'
 import { supportsNativeHealthSync, writeSessionToAppleHealth } from './services/health'
 import { getSupabaseSetupMessage, isSupabaseConfigured, supabase, usesNativeAuthRedirect } from './services/supabase'
+import { getAuthBackend, getFirebaseSetupMessage, isFirebaseConfigured } from './services/firebase'
 import { createInitialTelemetryState, fetchLiveWeatherSnapshot, syncTelemetry } from './services/telemetry'
 import { hasAcceptedCurrentLegalVersions } from './legal'
 import type {
@@ -122,7 +130,7 @@ function toLocalWorkoutLog(session: SessionSavePayload): WorkoutLog {
 
 function App() {
   const [currentView, setCurrentView] = useState<ViewId>('login')
-  const [session, setSession] = useState<Session | null>(null)
+  const [session, setSession] = useState<AppSession | null>(null)
   const [isAuthBootstrapping, setIsAuthBootstrapping] = useState(true)
   const [isAuthBusy, setIsAuthBusy] = useState(false)
   const [authMessage, setAuthMessage] = useState(getSupabaseSetupMessage())
@@ -143,7 +151,7 @@ function App() {
   const [stopwatchLevel, setStopwatchLevel] = useState<TrainingLevel>('novice')
   const [breathworkLevel, setBreathworkLevel] = useState<TrainingLevel>('novice')
   const [progression, setProgression] = useState<TrainingProgression>(INITIAL_PROGRESSION)
-  const sessionRef = useRef<Session | null>(null)
+  const sessionRef = useRef<AppSession | null>(null)
   const presetModeRef = useRef(presetMode)
   const pendingProviderRef = useRef<SocialAuthProvider | null>(null)
   const lastUsageScreenRef = useRef('')
@@ -165,6 +173,8 @@ function App() {
   )
   const isAuthenticated = session !== null
   const accountEmail = session?.user.email ?? 'Signed-in user'
+  const isAuthConfigured = getAuthBackend() === 'firebase' ? isFirebaseConfigured : isSupabaseConfigured
+  const authConfigMessage = getAuthBackend() === 'firebase' ? getFirebaseSetupMessage() : getSupabaseSetupMessage()
   const hasCurrentConsent = hasAcceptedCurrentLegalVersions(consentRecord)
   const usageAnalyticsEnabled = hasCurrentConsent && Boolean(consentRecord?.acceptedUsageAnalyticsAt)
   const navActiveView =
@@ -228,12 +238,20 @@ function App() {
 
   useEffect(() => {
     let isMounted = true
+
+    if (getAuthBackend() !== 'supabase') {
+      return () => {
+        isMounted = false
+      }
+    }
+
     let authSubscription: { unsubscribe: () => void } | null = null
     const applyAuthStateChange = (event: string, nextSession: Session | null) => {
       const previousUserId = sessionRef.current?.user.id ?? null
 
-      sessionRef.current = nextSession
-      setSession(nextSession)
+      const normalizedSession = normalizeSupabaseSession(nextSession)
+      sessionRef.current = normalizedSession
+      setSession(normalizedSession)
 
       if (nextSession) {
         const enteredAuthenticatedSession =
@@ -312,8 +330,8 @@ function App() {
         setAuthError(formatAuthError(error))
       }
 
-      sessionRef.current = data.session ?? null
-      setSession(data.session ?? null)
+      sessionRef.current = normalizeSupabaseSession(data.session ?? null)
+      setSession(normalizeSupabaseSession(data.session ?? null))
       setCurrentView(data.session ? 'dashboard' : 'login')
       setIsAuthBootstrapping(Boolean(data.session))
 
@@ -329,6 +347,53 @@ function App() {
     return () => {
       isMounted = false
       authSubscription?.unsubscribe()
+    }
+  }, [])
+
+  useEffect(() => {
+    if (getAuthBackend() !== 'firebase') {
+      return undefined
+    }
+
+    const unsubscribe = subscribeToFirebaseAuthChanges((nextSession) => {
+      const previousUserId = sessionRef.current?.user.id ?? null
+
+      sessionRef.current = nextSession
+      setSession(nextSession)
+
+      if (nextSession) {
+        const enteredAuthenticatedSession = previousUserId === null || nextSession.user.id !== previousUserId
+
+        if (enteredAuthenticatedSession) {
+          setCurrentView('dashboard')
+          setIsAuthBootstrapping(true)
+        }
+
+        setAuthError('')
+        setAuthMessage('')
+      } else {
+        setCurrentView('login')
+        setHealth(initialHealth)
+        setLogs(initialLogs)
+        setWeatherUiPhase('idle')
+        setTelemetry(createInitialTelemetryState())
+        setConsentRecord(null)
+        setOnboardingProfile(null)
+        setIsOnboardingComplete(false)
+        setDraftPreset(STANDARD_SESSION_PRESET)
+        setActiveSessionPreset(STANDARD_SESSION_PRESET)
+        setConsentError('')
+        setOnboardingError('')
+        setIsAuthBootstrapping(false)
+      }
+
+      setIsAuthBusy(false)
+    })
+
+    setIsAuthBootstrapping(false)
+
+    return () => {
+      unsubscribe()
     }
   }, [])
 
@@ -531,21 +596,28 @@ function App() {
     }
   }, [])
 
-  const handleSignOut = useCallback(async () => {
-    if (!supabase) {
-      return
-    }
+  const handleRequestPasswordReset = useCallback(async (email: string) => {
+    setAuthError('')
+    setIsAuthBusy(true)
+    setAuthMessage('Sending reset link...')
 
+    try {
+      await requestPasswordReset(email)
+      setAuthMessage('If that email has an account, a reset link is on its way.')
+    } catch (error) {
+      setAuthError(formatAuthError(error))
+      setAuthMessage('')
+    } finally {
+      setIsAuthBusy(false)
+    }
+  }, [])
+
+  const handleSignOut = useCallback(async () => {
     setIsAuthBusy(true)
     setAuthError('')
 
     try {
-      const { error } = await supabase.auth.signOut()
-
-      if (error) {
-        throw error
-      }
-
+      await signOutCurrentUser()
       setAuthMessage('You have signed out.')
       setConsentError('')
     } catch (error) {
@@ -937,11 +1009,13 @@ function App() {
             <LoginScreen
               onEmailAuth={handleEmailAuth}
               onSocialAuth={handleSocialAuth}
+              onRequestPasswordReset={handleRequestPasswordReset}
               isAuthBusy={isAuthBusy}
               isBootstrapping={isAuthBootstrapping}
               authMessage={authMessage}
               authError={authError}
-              isSupabaseConfigured={isSupabaseConfigured}
+              isAuthConfigured={isAuthConfigured}
+              authConfigMessage={authConfigMessage}
             />
           </div>
         ) : isAuthBootstrapping ? (
