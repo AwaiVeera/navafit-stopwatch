@@ -9,7 +9,8 @@ current default). Firebase code is present but dormant and must stay off for the
 builds. Do **not** flip the flag as part of test-build prep.
 
 **Current versions in the branch:**
-- iOS: `MARKETING_VERSION 1.0.3`, `CURRENT_PROJECT_VERSION 28`
+- iOS: `MARKETING_VERSION 1.0.3`, `CURRENT_PROJECT_VERSION 29` (28 is already on
+  TestFlight — Complete, uploaded Jul 5 2026 — so this branch ships as **1.0.3 (29)**)
 - Android: `versionName "1.0.3"`, `versionCode 4`
 
 **What is already done in code (no action needed):**
@@ -29,10 +30,9 @@ alone — I am prohibited from handling those.
 
 ### Priority 1 — Unblock iOS TestFlight
 
-1. **Confirm whether build 28 was already uploaded to TestFlight/App Store Connect.**
-   - If **yes**: bump `CURRENT_PROJECT_VERSION` to **29** before archiving (App Store
-     Connect rejects a duplicate build number). Tell me and I'll bump it.
-   - If **no**: 28 is fine to ship as-is.
+1. **Build number is set to 29.** Build 28 was confirmed already on TestFlight
+   (Complete), so `CURRENT_PROJECT_VERSION` has been bumped to **29** in this branch —
+   no action needed. (App Store Connect rejects duplicate build numbers.)
 2. **Apple Distribution certificate + provisioning.** In Xcode → Signing & Capabilities,
    confirm the App's automatic signing has a valid **Apple Distribution** cert for team
    ID on `com.navafit.alignment`. If missing, create it via Xcode's "Manage Certificates"
@@ -141,7 +141,7 @@ npx cap sync ios
 ## Quick checklist
 
 **iOS**
-- [ ] Confirm build 28 not already uploaded (bump to 29 if it was)
+- [x] Build number bumped to 29 (28 confirmed already on TestFlight)
 - [ ] Valid Apple Distribution cert on `com.navafit.alignment`
 - [ ] Archive `App.xcodeproj` (no `.xcworkspace`) → upload → TestFlight
 - [ ] Assign internal testers
