@@ -1,5 +1,8 @@
 ext {
-    minSdkVersion = 24
+    // 26 (Android 8.0) is the floor required by @capgo/capacitor-health, which
+    // wraps Health Connect. The plugin's own manifest declares minSdk 26, so the
+    // app cannot build below it. This drops support for Android 7.x (API 24-25).
+    minSdkVersion = 26
     compileSdkVersion = 36
     targetSdkVersion = 36
     androidxActivityVersion = '1.11.0'
