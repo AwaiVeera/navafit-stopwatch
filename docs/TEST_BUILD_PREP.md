@@ -55,16 +55,17 @@ alone — I am prohibited from handling those.
    keytool -genkey -v -keystore navafit-upload.keystore \
      -alias navafit-upload -keyalg RSA -keysize 2048 -validity 10000
    ```
-2. **Create `android/keystore.properties`** (git-ignored) pointing at it:
+2. **Create `android/keystore.properties`** (git-ignored) pointing at it. The release
+   `signingConfig` in `android/app/build.gradle` is **already wired** to read this file
+   — just copy the template and fill it in:
+   ```bash
+   cp android/keystore.properties.example android/keystore.properties
+   # then edit storePassword / keyPassword (and storeFile path if not alongside)
    ```
-   storeFile=/absolute/path/to/navafit-upload.keystore
-   storePassword=…
-   keyAlias=navafit-upload
-   keyPassword=…
-   ```
-   Then tell me — I'll wire `android/app/build.gradle` to read it for the release
-   `signingConfig` (code change, safe for me to do; the secrets stay in the untracked
-   properties file).
+   Keys: `storeFile` (absolute, or relative to `android/`), `storePassword`, `keyAlias`,
+   `keyPassword`. When the file is absent, release builds fall back to debug signing, so
+   `bundleRelease` only produces an upload-signable AAB once this exists. The properties
+   file and any `*.jks`/`*.keystore` are git-ignored — never commit signing material.
 3. **Register the upload key's SHA-1 and SHA-256** in Firebase Console → Project
    Settings → Your apps → Android app → "Add fingerprint". Get them with:
    ```bash
