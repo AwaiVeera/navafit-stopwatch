@@ -18,7 +18,16 @@ interface LoginScreenProps {
 }
 
 const LOGO_SRC = '/navafit-logo.png'
-const SOCIAL_PROVIDERS: SocialAuthProvider[] = ['apple', 'google', 'facebook']
+
+// Facebook stays hidden until it is provisioned end-to-end (Facebook App +
+// Supabase/Firebase provider config + native iOS/Android SDK entries). Enable
+// by setting VITE_ENABLE_FACEBOOK=true once that provisioning is done, so the
+// button never ships as a dead-end control in a test build.
+const FACEBOOK_ENABLED = (import.meta.env.VITE_ENABLE_FACEBOOK ?? '').trim().toLowerCase() === 'true'
+
+const SOCIAL_PROVIDERS: SocialAuthProvider[] = FACEBOOK_ENABLED
+  ? ['apple', 'google', 'facebook']
+  : ['apple', 'google']
 
 type ScreenMode = 'auth' | 'reset'
 

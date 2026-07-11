@@ -23,11 +23,13 @@ function renderScreen(overrides: Partial<ComponentProps<typeof LoginScreen>> = {
 }
 
 describe('LoginScreen', () => {
-  it('renders all three social sign-in options', () => {
+  it('renders Apple and Google, and hides Facebook by default (flag off)', () => {
     renderScreen()
     expect(screen.getByRole('button', { name: /continue with apple/i })).toBeTruthy()
     expect(screen.getByRole('button', { name: /continue with google/i })).toBeTruthy()
-    expect(screen.getByRole('button', { name: /continue with facebook/i })).toBeTruthy()
+    // VITE_ENABLE_FACEBOOK is unset in tests, so Facebook must not render —
+    // it stays hidden until provisioned. See FACEBOOK_ENABLED in LoginScreen.
+    expect(screen.queryByRole('button', { name: /continue with facebook/i })).toBeNull()
   })
 
   it('submits email and password on sign in', async () => {
