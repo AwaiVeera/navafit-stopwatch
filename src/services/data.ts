@@ -313,18 +313,6 @@ function getHealthSourceLabel(
   return 'App baseline'
 }
 
-function getWatchSourceLabel(deviceConnections: DeviceConnectionRecord[]) {
-  if (deviceConnections.some((connection) => connection.provider === 'apple_watch' && connection.status === 'active')) {
-    return 'Apple Watch'
-  }
-
-  if (deviceConnections.some((connection) => connection.provider === 'garmin_connect' && connection.status === 'active')) {
-    return 'Garmin watch'
-  }
-
-  return 'Watch not connected'
-}
-
 export function buildWorkoutInsertPayload(userId: string, session: SessionSavePayload) {
   return {
     user_id: userId,
@@ -516,7 +504,6 @@ export async function loadPersistedAppState({
     toDeviceConnectionRecord(row as DeviceConnectionRow),
   )
   const appleHealthConnection = deviceConnections.find((connection) => connection.provider === 'apple_health')
-  const appleWatchConnection = deviceConnections.find((connection) => connection.provider === 'apple_watch')
 
   return {
     logs: (workoutResponse.data ?? []).map((row) => toWorkoutLog(row as WorkoutSessionRow)),
@@ -531,7 +518,6 @@ export async function loadPersistedAppState({
     },
     telemetry: {
       healthApp: mapConnectionToSyncStatus(appleHealthConnection),
-      fitnessWatch: mapConnectionToSyncStatus(appleWatchConnection),
       weather: latestSnapshot?.weather_condition ? 'ready' : fallbackTelemetry.weather,
       weatherSnapshot: latestSnapshot?.weather_condition
         ? {
@@ -544,7 +530,6 @@ export async function loadPersistedAppState({
         ? `Synced ${toTimeLabel(latestSnapshot.recorded_at)}`
         : fallbackTelemetry.lastSyncLabel,
       healthSourceLabel: getHealthSourceLabel(latestSnapshot, deviceConnections),
-      watchSourceLabel: getWatchSourceLabel(deviceConnections),
     },
     consent: consentResponse.data ? toConsentRecord(consentResponse.data as UserConsentRow) : null,
     deviceConnections,

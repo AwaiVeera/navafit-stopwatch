@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
+import { ScreenPager, ScreenPage } from '../components/ScreenPager'
 import type { HealthMetrics, InsightSnapshot } from '../types'
 
 interface BiometricsScreenProps {
@@ -13,7 +14,6 @@ const HANDSHAKE_STEPS = ['Idle', 'Scanning', 'Pairing', 'Syncing', 'Ready'] as c
 export function BiometricsScreen({ health, insights, onBack }: BiometricsScreenProps) {
   const [stepIndex, setStepIndex] = useState(0)
   const [isHandshakeRunning, setIsHandshakeRunning] = useState(false)
-  const guidanceRef = useRef<HTMLElement | null>(null)
 
   useEffect(() => {
     if (!isHandshakeRunning) {
@@ -62,22 +62,16 @@ export function BiometricsScreen({ health, insights, onBack }: BiometricsScreenP
       : 'Start'
 
   return (
-    <section className="screen-shell biometrics-screen">
+    <section className="screen-shell biometrics-screen screen-shell--paged">
       <div className="top-chrome">
         <button type="button" className="round-icon-btn" onClick={onBack} aria-label="Back">
           <BackIcon />
         </button>
-        <button
-          type="button"
-          className="round-icon-btn"
-          aria-label="Jump to Recovery Guidance"
-          onClick={() => guidanceRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-        >
-          <PulseIcon />
-        </button>
+        <p className="title-font text-[1.2rem] font-semibold text-[var(--text-primary)]">Biometrics</p>
       </div>
 
-      <div className="content-stack space-y-4">
+      <ScreenPager ariaLabel="Biometrics">
+        <ScreenPage className="screen-page--scroll">
         <section className="hero-surface hero-surface-recovery cinema-surface cinema-surface--hero">
           <div className="recovery-hero-head">
             <div className="recovery-hero-copy">
@@ -112,12 +106,14 @@ export function BiometricsScreen({ health, insights, onBack }: BiometricsScreenP
             </article>
           </div>
         </section>
+        </ScreenPage>
 
+        <ScreenPage className="screen-page--scroll">
         <article className="glass-sheet biometrics-card">
           <div className="handshake-head">
             <div className="handshake-head-copy">
               <p className="title-font text-[1.2rem] font-medium text-[var(--text-primary)]">Hardware Handshake</p>
-              <p className="support-copy mt-1">Apple Watch or Garmin pairing sequence.</p>
+              <p className="support-copy mt-1">Connect a compatible fitness device to pair.</p>
             </div>
             <button
               type="button"
@@ -159,8 +155,10 @@ export function BiometricsScreen({ health, insights, onBack }: BiometricsScreenP
             </div>
           </div>
         </article>
+        </ScreenPage>
 
-        <article ref={guidanceRef} className="glass-sheet biometrics-card cinema-surface">
+        <ScreenPage className="screen-page--scroll">
+        <article className="glass-sheet biometrics-card cinema-surface">
           <div className="info-row items-start">
             <div>
               <p className="title-font text-[1.2rem] font-medium text-[var(--text-primary)]">Recovery Guidance</p>
@@ -203,13 +201,14 @@ export function BiometricsScreen({ health, insights, onBack }: BiometricsScreenP
           </div>
 
           {recovery.hydrationAlert && (
-            <div className="glass-card cinema-surface cinema-surface--sub mt-4 border-[rgb(255_255_255/0.14)] bg-white/10">
+            <div className="glass-card cinema-surface cinema-surface--sub mt-4">
               <p className="label-text">Hydration Alert</p>
               <p className="mt-2 text-sm text-[var(--text-primary)]">Drink water with electrolytes before the next recovery round.</p>
             </div>
           )}
         </article>
-      </div>
+        </ScreenPage>
+      </ScreenPager>
     </section>
   )
 }
@@ -231,11 +230,3 @@ function BackIcon() {
   )
 }
 
-function PulseIcon() {
-  return (
-    <svg viewBox="0 0 20 20" aria-hidden className="h-4 w-4 fill-none stroke-current stroke-[1.6]">
-      <path d="M2.5 10h3.3l1.6-3.1 3.1 6.1 1.8-4H17.5" />
-      <path d="M10 17a7 7 0 1 0 0-14 7 7 0 0 0 0 14Z" />
-    </svg>
-  )
-}

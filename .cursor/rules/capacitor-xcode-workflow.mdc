@@ -11,17 +11,23 @@ alwaysApply: false
 - "Signing for 'App' requires a development team" → See `docs/XCODE_SIGNING_FIRST_TIME.md`.
 - User has zero coding background: give step-by-step instructions, no assumptions.
 
-## Sync and Build
+## Sync and Run (Capacitor CLI first)
 
 - After web code changes, run `npm run cap:sync`.
-- Verify simulator build path before iOS readiness claims:
-  - `xcodebuild -project ios/App/App.xcodeproj -scheme App -destination "generic/platform=iOS Simulator" build`
+- Canonical run path is the Capacitor CLI (matches the other Veera Mishra apps):
+  - iOS: `npm run ios:run` (alias for `cap:sync` + `cap run ios`)
+  - Android: `npm run android:run` (alias for `cap:sync` + `cap run android`)
+- Open native IDEs only when needed: `npm run ios:open` / `npm run android:open`.
+- Use Xcode / `xcodebuild` only for archive + signing + App Store submission, not for routine runs.
+- The iOS Xcode target/product is named `App` (Capacitor default) so `cap run` can locate `App.app`; the user-facing name stays "NavaFit Alignment" via `CFBundleDisplayName` in `ios/App/App/Info.plist`.
 
 # Platform Checks
 
 - Confirm simulator devices exist via `xcrun simctl list devices available`.
 - If platform runtime is missing, use:
   - `xcodebuild -downloadPlatform iOS`
+- Optional archive verification (release only):
+  - `xcodebuild -project ios/App/App.xcodeproj -scheme App -destination "generic/platform=iOS Simulator" build`
 
 # Release-Safe Notes
 

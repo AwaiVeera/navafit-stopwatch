@@ -1,10 +1,12 @@
-import { memo, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
-import { tapFeedback } from '../utils/feedback'
+import { ScreenPager, ScreenPage } from '../components/ScreenPager'
 import { getDailyQuote } from '../services/quotes'
+import { computeStreak } from '../services/streak'
 import type {
   HealthMetrics,
   InsightSnapshot,
+  OnboardingProfile,
   PresetMode,
   SessionPreset,
   TelemetryState,
@@ -21,13 +23,57 @@ interface DashboardScreenProps {
   logs: WorkoutLog[]
   totalMinutes: number
   onOpenStopwatch: () => void
+  onOpenBreath?: () => void
   recommendedPreset: SessionPreset
   presetMode: PresetMode
-  /** Weather-only refresh UX (does not replace telemetry sync label). */
+  onboardingProfile?: OnboardingProfile | null
+  accountEmail?: string
   weatherUiPhase?: 'idle' | 'loading' | 'offline' | 'error'
 }
 
-function DashboardScreenComponent({
+function greetingFor(hour: number): string {
+  if (hour < 12) return 'Good morning'
+  if (hour < 18) return 'Good afternoon'
+  return 'Good evening'
+}
+
+function handleFromEmail(email?: string): string | null {
+  if (!email || !email.includes('@')) return null
+  const local = email.split('@')[0]
+  return local.charAt(0).toUpperCase() + local.slice(1)
+}
+
+const DATE_FMT: Intl.DateTimeFormatOptions = { weekday: 'long', day: 'numeric', month: 'long' }
+const TIME_FMT: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digit' }
+
+type MetricTone = 'synced' | 'profile' | 'unavailable'
+
+function MetricCard({
+  label,
+  value,
+  unit,
+  tag,
+  tone,
+}: {
+  label: string
+  value: string
+  unit?: string
+  tag: string
+  tone: MetricTone
+}) {
+  return (
+    <div className="dash-metric">
+      <p className="dash-metric-label">{label}</p>
+      <p className="dash-metric-value">
+        {value}
+        {unit && value !== '—' && <span className="dash-metric-unit"> {unit}</span>}
+      </p>
+      <span className={`dash-tag dash-tag--${tone}`}>{tag}</span>
+    </div>
+  )
+}
+
+export function DashboardScreen({
   health,
   insights,
   telemetry,
@@ -35,434 +81,197 @@ function DashboardScreenComponent({
   onSyncTelemetry,
   onEnableHealthWeather,
   logs,
-  totalMinutes,
   onOpenStopwatch,
+  onOpenBreath,
   recommendedPreset,
-  presetMode,
-  weatherUiPhase = 'idle',
+  onboardingProfile,
+  accountEmail,
 }: DashboardScreenProps) {
-  const dailyQuote = getDailyQuote()
-  const [reportRange, setReportRange] = useState<ReportRange>('month')
-  const dashboardInsights = insights.items.filter((item) => item.domain !== 'recovery')
-  const guidanceRef = useRef<HTMLElement | null>(null)
-  const sessionsRef = useRef<HTMLElement | null>(null)
-  const chartConfig = useMemo(() => buildChartFromLogs(logs, reportRange), [logs, reportRange])
+  const [now, setNow] = useState(() => new Date())
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(new Date()), 15_000)
+    return () => window.clearInterval(id)
+  }, [])
 
-  const jumpToSection = (element: HTMLElement | null) => {
-    element?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  }
+  const quote = useMemo(() => getDailyQuote(), [])
+  const streak = useMemo(() => computeStreak(logs, now), [logs, now])
+  const lastSession = logs[0] ?? null
+  const handle = handleFromEmail(accountEmail)
+
+  const weather = telemetry.weatherSnapshot
+  const weatherOff = weather.source === 'disabled'
+  const readiness = Math.round(health.readiness)
+  const topInsight = insights.items[0]
 
   return (
-    <section className="screen-shell">
-      <div className="top-chrome">
-        <button
-          type="button"
-          className="round-icon-btn"
-          aria-label="Jump to AI Guidance"
-          onClick={() => jumpToSection(guidanceRef.current)}
-        >
-          <DotsClusterIcon />
-        </button>
-        <button
-          type="button"
-          className="round-icon-btn"
-          aria-label="Jump to Recent Sessions"
-          onClick={() => jumpToSection(sessionsRef.current)}
-        >
-          <GridIcon />
-        </button>
-      </div>
-
-      <div className="content-stack space-y-4">
-        {/* Daily motivational quote — large feature tile */}
-        <section className="glass-sheet dashboard-quote-tile cinema-surface">
-          <p className="label-text mb-3">Daily Wisdom</p>
-          <p className="dashboard-quote-text">"{dailyQuote.text}"</p>
-          <p className="dashboard-quote-source mt-3">— {dailyQuote.source}</p>
-        </section>
-
-        {/* Primary CTA — Begin Session */}
-        <button
-          type="button"
-          className="primary-btn primary-btn-strong w-full justify-center dashboard-begin-cta"
-          onClick={() => { tapFeedback(); onOpenStopwatch() }}
-        >
-          Begin Session
-        </button>
-
-        <section className="hero-surface hero-surface-dashboard dashboard-hero-shell animate-hero-pulse cinema-surface cinema-surface--hero">
-          <div className="hero-dashboard-head">
+    <section className="screen-shell screen-shell--paged dash-screen">
+      <ScreenPager ariaLabel="Dashboard">
+        <ScreenPage className="screen-page--scroll">
+          <div className="dash-head">
             <div>
-              <p className="section-kicker">Connected Core</p>
-              <p className="support-copy mt-1">Ready to track your progress</p>
-            </div>
-            <div className="dashboard-status-chip">{telemetry.watchSourceLabel}</div>
-          </div>
-
-          <div className="hero-dashboard-stage">
-            <div className="hero-dashboard-metric">
-              <p className="label-text">Readiness</p>
-              <div className="mt-2 flex items-end gap-1">
-                <span className="metric-number-soft">{health.readiness}</span>
-                <span className="metric-unit">%</span>
-              </div>
-              <p className="mt-2 text-sm text-[var(--text-muted)]">Green-light window for the next block</p>
-            </div>
-
-            <div className="device-hero device-hero-inline dashboard-hero-art" />
-
-            <div className="hero-float-dot left-10 top-[4.5rem]" />
-            <div className="hero-float-dot right-12 top-[6.4rem]" />
-          </div>
-        </section>
-
-        <section className="glass-sheet dashboard-health-sheet cinema-surface">
-          <div className="info-row">
-            <div>
-              <p className="title-font text-[1.55rem] font-medium text-[var(--text-primary)]">Health Check</p>
-              <p className="support-copy mt-1">Time to track your progress</p>
-            </div>
-            <button
-              type="button"
-              onClick={onSyncTelemetry}
-              disabled={isTelemetrySyncing}
-              className="round-icon-btn-soft"
-              aria-label="Sync telemetry"
-            >
-              <ArrowUpRightIcon />
-            </button>
-          </div>
-
-          <div className="card-media-strip card-media-strip-health mt-4" aria-hidden />
-
-          <div className="metric-chip-grid mt-4">
-            <MetricChip label="Heart Rate" value={`${health.heartRate}`} unit="BPM" />
-            <MetricChip label="Stamina" value={`${health.stamina}`} unit="%" />
-            <div className="metric-chip">
-              <p className="metric-chip-label">Weather</p>
-              {weatherUiPhase === 'loading' ? (
-                <p className="metric-chip-value mt-3">Updating…</p>
-              ) : telemetry.weatherSnapshot.temperatureC === null ? (
-                <p className="metric-chip-value mt-3">{telemetry.weatherSnapshot.condition}</p>
-              ) : (
-                <div className="metric-chip-value-row mt-3">
-                  <p className="metric-chip-value">{`${telemetry.weatherSnapshot.temperatureC}`}</p>
-                  <p className="metric-unit">C</p>
-                </div>
-              )}
-              {(weatherUiPhase === 'offline' || weatherUiPhase === 'error') && (
-                <p className="mt-2 text-[10px] uppercase tracking-[0.12em] text-[var(--text-dim)]">
-                  {weatherUiPhase === 'offline' ? 'Offline' : 'Live weather unavailable'}
-                </p>
-              )}
-            </div>
-          </div>
-          {telemetry.lastSyncLabel === 'Not synced yet' && (
-            <button
-              type="button"
-              className="secondary-btn mt-4 w-full justify-center"
-              onClick={() => {
-                tapFeedback()
-                onEnableHealthWeather()
-              }}
-            >
-              Enable health & weather
-            </button>
-          )}
-        </section>
-
-        <section className="glass-sheet">
-          <div className="info-row">
-            <div>
-              <p className="label-text">Next Session</p>
-              <p className="title-font mt-2 text-[1.2rem] font-medium text-[var(--text-primary)]">
-                {recommendedPreset.title}
+              <p className="dash-greeting">
+                {greetingFor(now.getHours())}
+                {handle ? `, ${handle}` : ''}
               </p>
-              <p className="support-copy mt-1">{recommendedPreset.summary}</p>
+              <p className="dash-date">{now.toLocaleDateString(undefined, DATE_FMT)}</p>
             </div>
-            <div className="text-right">
-              <p className="metric-number-soft text-[1.6rem]">{recommendedPreset.targetMinutes}</p>
-              <p className="metric-unit">min</p>
-            </div>
+            <p className="dash-clock" aria-label="Current time">
+              {now.toLocaleTimeString(undefined, TIME_FMT)}
+            </p>
           </div>
 
-          <div className="card-media-strip card-media-strip-session mt-4" aria-hidden />
-
-          <div className="metric-chip-grid mt-4">
-            <MetricChip label="Mode" value={presetMode === 'auto_apply' ? 'Auto Apply' : 'Suggest\u00A0Only'} unit="" />
-            <MetricChip label="Breath" value={recommendedPreset.breathPreset.label} unit="" compact />
-            <MetricChip label="Source" value={recommendedPreset.sourceLabel} unit="" compact />
-          </div>
-
-          <button type="button" className="primary-btn primary-btn-strong mt-5 w-full justify-center" onClick={onOpenStopwatch}>
-            Review adaptive preset
-          </button>
-        </section>
-
-        <section className="glass-sheet space-y-4 dashboard-report-sheet cinema-surface">
-          <div className="info-row">
-            <div>
-              <p className="title-font text-[1.45rem] font-medium text-[var(--text-primary)]">Body Report</p>
-              <p className="support-copy mt-1">Live readiness and session command center</p>
-            </div>
-            <div className="soft-toggle">
-              <button type="button" className={reportRange === 'week' ? 'is-active' : ''} onClick={() => setReportRange('week')}>
-                Week
-              </button>
-              <button type="button" className={reportRange === 'month' ? 'is-active' : ''} onClick={() => setReportRange('month')}>
-                Month
-              </button>
-              <button type="button" className={reportRange === 'year' ? 'is-active' : ''} onClick={() => setReportRange('year')}>
-                Year
-              </button>
-            </div>
-          </div>
-
-          <div>
-            <div className="info-row">
-              <div>
-                <p className="label-text">Endurance</p>
-                <p className="metric-number-soft">{health.endurance}%</p>
-              </div>
-              <div className="text-right">
-                <p className="text-sm text-[var(--accent-primary)]">{chartConfig.summary}</p>
-                <p className="mt-1 text-xs text-[var(--text-dim)]">{totalMinutes} min logged</p>
-              </div>
-            </div>
-
-            <div className="soft-chart mt-4">
-              <div className="soft-chart-bars">
-                {chartConfig.bars.map((height, index) => (
-                  <span key={`${reportRange}-${index}`} style={{ height: `${height}%` }} />
-                ))}
-              </div>
-              <div className="soft-chart-wave" />
-            </div>
-          </div>
-
-          <div className="metric-grid">
-            <div className="glass-card dashboard-feature-tile cinema-surface cinema-surface--tile">
-              <div className="tile-media tile-media-readiness" aria-hidden />
-              <p className="label-text">Readiness</p>
-              <p className="metric-number-soft mt-3">{health.readiness}%</p>
-              <p className="mt-2 text-sm text-[var(--text-muted)]">Stable baseline for today</p>
-            </div>
-            <div className="glass-card dashboard-feature-tile cinema-surface cinema-surface--tile">
-              <div className="tile-media tile-media-breath" aria-hidden />
-              <p className="label-text">Breath</p>
-              <p className="metric-number-soft mt-3">{health.breathPerMinute}</p>
-              <p className="mt-2 text-sm text-[var(--text-muted)]">Breaths per minute</p>
-            </div>
-            <button type="button" className="glass-card dashboard-feature-tile text-left" onClick={onOpenStopwatch}>
-              <div className="tile-media tile-media-stopwatch" aria-hidden />
-              <p className="label-text">Primary Tool</p>
-              <p className="title-font mt-3 text-[1.1rem] font-medium text-[var(--text-primary)]">Combat Stopwatch</p>
-              <p className="mt-2 text-sm text-[var(--text-muted)]">Interval tracking and sets</p>
-            </button>
-          </div>
-        </section>
-
-        <section ref={guidanceRef} className="glass-sheet cinema-surface">
-          <div className="info-row">
-            <div>
-              <p className="title-font text-[1.45rem] font-medium text-[var(--text-primary)]">AI Guidance</p>
-              <p className="support-copy mt-1">
-                {insights.engineLabel} · {insights.generatedAtLabel}
-              </p>
-            </div>
-            <div className="glass-card-compact ai-engine-badge px-3 py-2 text-xs text-[var(--text-secondary)]">
-              AI
-            </div>
-          </div>
-
-          <div className="mt-4 space-y-3">
-            {dashboardInsights.map((item) => (
-              <InsightCard key={item.id} title={item.title} summary={item.summary} emphasis={item.emphasis} actionLabel={item.actionLabel} />
-            ))}
-          </div>
-        </section>
-
-        <section ref={sessionsRef} className="glass-sheet cinema-surface">
-          <div className="info-row">
-            <div>
-              <p className="title-font text-[1.45rem] font-medium text-[var(--text-primary)]">Recent Sessions</p>
-              <p className="support-copy mt-1">{telemetry.lastSyncLabel}</p>
-            </div>
-            <div className="flex gap-2">
-              <SyncChip label="Health" status={telemetry.healthApp} />
-              <SyncChip label="Watch" status={telemetry.fitnessWatch} />
-            </div>
-          </div>
-
-          <div className="mt-4 space-y-3">
-            {logs.length === 0 ? (
-              <div className="glass-card text-sm text-[var(--text-secondary)]">
-                No synced sessions yet. Start a stopwatch session or sync Apple Health to populate this history.
-              </div>
+          <button
+            type="button"
+            className="dash-weather"
+            onClick={weatherOff ? onEnableHealthWeather : undefined}
+            aria-label="Weather"
+          >
+            {weatherOff ? (
+              <span className="dash-weather-off">Weather off · tap to enable</span>
             ) : (
-              logs.map((log) => (
-                <div key={log.id} className="glass-card session-log-card cinema-surface cinema-surface--sub">
-                  <div className="info-row">
-                    <div>
-                      <p className="title-font text-[1.05rem] font-medium text-[var(--text-primary)]">{log.title}</p>
-                      <p className="mt-1 text-sm text-[var(--text-muted)]">{log.date}</p>
-                    </div>
-                    <p className="metric-number-soft text-[1.45rem]">{log.durationMinutes}m</p>
-                  </div>
-                  <p className="mt-3 text-sm leading-relaxed text-[var(--text-secondary)]">{log.note}</p>
-                </div>
-              ))
+              <>
+                <span className="dash-weather-temp">
+                  {weather.temperatureC === null ? '—' : `${Math.round(weather.temperatureC)}°`}
+                </span>
+                <span className="dash-weather-cond">
+                  {weather.condition}
+                  {weather.source === 'simulated' && <em className="dash-est"> · estimated</em>}
+                </span>
+              </>
+            )}
+          </button>
+
+          <div className="dash-readiness">
+            <ReadinessRing value={readiness} />
+            <div className="dash-readiness-copy">
+              <p className="dash-readiness-label">Readiness</p>
+              <p className="dash-readiness-hint">{topInsight ? topInsight.title : 'Sync to personalise'}</p>
+              <span className={`dash-streak${streak > 0 ? ' dash-streak--live' : ''}`}>
+                {streak > 0 ? `🔥 ${streak}-day streak` : 'Start your streak today'}
+              </span>
+            </div>
+          </div>
+
+          <div className="dash-session-card">
+            <p className="section-kicker">Today’s session</p>
+            <h3 className="dash-session-title">{recommendedPreset.title}</h3>
+            <p className="dash-session-summary">{recommendedPreset.summary}</p>
+            <div className="dash-session-actions">
+              <button type="button" className="sw-btn sw-btn-primary" onClick={onOpenStopwatch}>
+                Stopwatch
+              </button>
+              <button
+                type="button"
+                className="sw-btn"
+                onClick={onOpenBreath}
+                disabled={!onOpenBreath}
+              >
+                Breathwork
+              </button>
+            </div>
+          </div>
+        </ScreenPage>
+
+        <ScreenPage className="screen-page--scroll">
+          <p className="section-kicker">Vitals &amp; profile</p>
+          <div className="dash-metric-grid">
+            <MetricCard
+              label="Steps today"
+              value={health.stepsToday === null ? 'Not connected' : health.stepsToday.toLocaleString()}
+              tag={health.stepsToday === null ? 'Health sync' : 'Synced'}
+              tone={health.stepsToday === null ? 'unavailable' : 'synced'}
+            />
+            <MetricCard
+              label="Heart rate"
+              value={health.heartRate > 0 ? String(Math.round(health.heartRate)) : '—'}
+              unit="bpm"
+              tag={health.heartRate > 0 ? 'Synced' : 'Unavailable'}
+              tone={health.heartRate > 0 ? 'synced' : 'unavailable'}
+            />
+            <MetricCard
+              label="Height"
+              value={onboardingProfile ? String(onboardingProfile.heightCm) : '—'}
+              unit="cm"
+              tag="Profile"
+              tone="profile"
+            />
+            <MetricCard
+              label="Weight"
+              value={onboardingProfile ? String(onboardingProfile.weightKg) : '—'}
+              unit="kg"
+              tag="Profile"
+              tone="profile"
+            />
+            <MetricCard
+              label="Age"
+              value={onboardingProfile ? String(onboardingProfile.ageYears) : '—'}
+              unit="yrs"
+              tag="Profile"
+              tone="profile"
+            />
+          </div>
+
+          <div className="dash-sync-card">
+            <div>
+              <p className="dash-sync-title">Health sync</p>
+              <p className="dash-sync-status">{telemetry.lastSyncLabel || 'Not synced yet'}</p>
+            </div>
+            <button
+              type="button"
+              className="sw-btn"
+              onClick={telemetry.healthApp === 'unavailable' ? onEnableHealthWeather : onSyncTelemetry}
+              disabled={isTelemetrySyncing}
+            >
+              {isTelemetrySyncing ? 'Syncing…' : telemetry.healthApp === 'unavailable' ? 'Enable' : 'Sync'}
+            </button>
+          </div>
+
+          <div className="dash-last-card">
+            <p className="section-kicker">Previous session</p>
+            {lastSession ? (
+              <>
+                <p className="dash-last-title">{lastSession.title}</p>
+                <p className="dash-last-meta">
+                  {lastSession.durationMinutes} min ·{' '}
+                  {new Date(lastSession.date).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}
+                </p>
+              </>
+            ) : (
+              <p className="dash-empty">No sessions yet — your first one will show here.</p>
             )}
           </div>
-        </section>
-      </div>
+
+          <figure className="dash-quote">
+            <blockquote>{quote.text}</blockquote>
+            <figcaption>{quote.source}</figcaption>
+          </figure>
+        </ScreenPage>
+      </ScreenPager>
     </section>
   )
 }
 
-export const DashboardScreen = memo(DashboardScreenComponent)
+const RING_R = 34
+const RING_C = 2 * Math.PI * RING_R
 
-function InsightCard({
-  title,
-  summary,
-  emphasis,
-  actionLabel,
-}: {
-  title: string
-  summary: string
-  emphasis: string
-  actionLabel: string
-}) {
+function ReadinessRing({ value }: { value: number }) {
+  const clamped = Math.min(100, Math.max(0, value))
+  const offset = RING_C * (1 - clamped / 100)
   return (
-    <div className="glass-card dashboard-insight-card cinema-surface cinema-surface--sub">
-      <div className="info-row">
-        <p className="title-font text-[1.05rem] font-medium text-[var(--text-primary)]">{title}</p>
-        <span className="text-xs text-[var(--accent-primary)]">{actionLabel}</span>
-      </div>
-      <p className="mt-3 text-sm leading-relaxed text-[var(--text-secondary)]">{summary}</p>
-      <p className="mt-3 text-xs text-[var(--text-dim)]">{emphasis}</p>
-    </div>
-  )
-}
-
-function MetricChip({
-  label,
-  value,
-  unit,
-  compact,
-}: {
-  label: string
-  value: string
-  unit: string
-  compact?: boolean
-}) {
-  const valueClass = compact ? 'metric-chip-value-compact' : 'metric-chip-value'
-  return (
-    <div className="metric-chip">
-      <p className="metric-chip-label">{label}</p>
-      {unit ? (
-        <div className="metric-chip-value-row mt-3">
-          <p className={valueClass}>{value}</p>
-          <p className="metric-unit">{unit}</p>
-        </div>
-      ) : (
-        <p className={`${valueClass} mt-3`}>{value}</p>
-      )}
-    </div>
-  )
-}
-
-function SyncChip({ label, status }: { label: string; status: TelemetryState['healthApp'] }) {
-  return (
-    <div className="glass-card-compact min-w-20 text-center">
-      <p className="text-[10px] uppercase tracking-[0.12em] text-[var(--text-dim)]">{label}</p>
-      <p className="mt-2 text-sm capitalize text-[var(--text-secondary)]">{status}</p>
-    </div>
-  )
-}
-
-function DotsClusterIcon() {
-  return (
-    <svg viewBox="0 0 20 20" aria-hidden className="h-4 w-4 fill-current">
-      <circle cx="6" cy="5" r="1.3" />
-      <circle cx="12" cy="5" r="1.3" />
-      <circle cx="9" cy="10" r="1.3" />
-      <circle cx="6" cy="15" r="1.3" />
-      <circle cx="12" cy="15" r="1.3" />
+    <svg className="dash-ring" viewBox="0 0 80 80" role="img" aria-label={`Readiness ${clamped} percent`}>
+      <circle className="dash-ring-track" cx="40" cy="40" r={RING_R} />
+      <circle
+        className="dash-ring-fill"
+        cx="40"
+        cy="40"
+        r={RING_R}
+        strokeDasharray={RING_C}
+        strokeDashoffset={offset}
+        transform="rotate(-90 40 40)"
+      />
+      <text className="dash-ring-text" x="40" y="46" textAnchor="middle">
+        {clamped}
+      </text>
     </svg>
   )
-}
-
-function GridIcon() {
-  return (
-    <svg viewBox="0 0 20 20" aria-hidden className="h-4 w-4 fill-current">
-      {[
-        [5, 5],
-        [10, 5],
-        [15, 5],
-        [5, 10],
-        [10, 10],
-        [15, 10],
-        [5, 15],
-        [10, 15],
-        [15, 15],
-      ].map(([cx, cy]) => (
-        <circle key={`${cx}-${cy}`} cx={cx} cy={cy} r="1" />
-      ))}
-    </svg>
-  )
-}
-
-function ArrowUpRightIcon() {
-  return (
-    <svg viewBox="0 0 20 20" aria-hidden className="h-4 w-4 fill-none stroke-current stroke-[1.6]">
-      <path d="M6 14 14 6M7 6h7v7" />
-    </svg>
-  )
-}
-
-type ReportRange = 'week' | 'month' | 'year'
-
-const BAR_COUNT = 22
-
-const RANGE_CONFIG: Record<ReportRange, { label: string; days: number }> = {
-  week: { label: 'Current 7-day focus', days: 7 },
-  month: { label: 'Current 30-day trend', days: 30 },
-  year: { label: 'Long-range baseline', days: 365 },
-}
-
-function buildChartFromLogs(
-  logs: WorkoutLog[],
-  range: ReportRange,
-): { summary: string; bars: number[] } {
-  const config = RANGE_CONFIG[range]
-  const now = Date.now()
-  const msPerDay = 86_400_000
-  const windowStart = now - config.days * msPerDay
-  const bucketSize = config.days / BAR_COUNT
-
-  const relevantLogs = logs.filter((log) => {
-    const ts = new Date(log.startedAt ?? log.date).getTime()
-    return ts >= windowStart && ts <= now
-  })
-
-  if (relevantLogs.length === 0) {
-    return { summary: config.label, bars: Array.from({ length: BAR_COUNT }, () => 4) }
-  }
-
-  const buckets = Array.from({ length: BAR_COUNT }, () => 0)
-
-  for (const log of relevantLogs) {
-    const ts = new Date(log.startedAt ?? log.date).getTime()
-    const dayOffset = (ts - windowStart) / msPerDay
-    const bucketIndex = Math.min(BAR_COUNT - 1, Math.floor(dayOffset / bucketSize))
-    buckets[bucketIndex] += log.durationMinutes
-  }
-
-  const maxMinutes = Math.max(...buckets, 1)
-
-  return {
-    summary: config.label,
-    bars: buckets.map((minutes) => Math.max(4, Math.round((minutes / maxMinutes) * 100))),
-  }
 }

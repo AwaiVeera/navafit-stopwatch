@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">NavaFit Alignment</string>
+    <string name="title_activity_main">NavaFit Alignment</string>
+    <string name="package_name">com.navafit.alignment</string>
+    <string name="custom_url_scheme">com.navafit.alignment</string>
+</resources>

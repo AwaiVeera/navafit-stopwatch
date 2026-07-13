@@ -1,0 +1,54 @@
+{
+  "project_info": {
+    "project_number": "967264796871",
+    "project_id": "navafit-alignment-9b93e",
+    "storage_bucket": "navafit-alignment-9b93e.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:967264796871:android:3c2dbf63cde09cf4f9bee2",
+        "android_client_info": {
+          "package_name": "com.navafit.alignment"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "967264796871-q0ttg8ant7k1q0ij9pttmjj8a4vdo4t7.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.navafit.alignment",
+            "certificate_hash": "db4e877bd22a4720a2a1b534033dd5475686c0f4"
+          }
+        },
+        {
+          "client_id": "967264796871-febs648sfd9ep4s0svp34742gp3ka6qa.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCMwQuh4HM43BAs2rpZVL1heb8IQkPf9OY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "967264796871-febs648sfd9ep4s0svp34742gp3ka6qa.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "967264796871-1391eo9cimo999mqrn70itjau1mgjkj5.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.navafit.alignment"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

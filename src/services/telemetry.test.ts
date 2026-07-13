@@ -11,14 +11,12 @@ describe('telemetry helpers', () => {
       {
         ...createInitialTelemetryState(),
         healthApp: 'syncing',
-        fitnessWatch: 'unavailable',
         weather: 'syncing',
       },
       'Apple Health permission was denied.',
     )
 
     expect(telemetry.healthApp).toBe('error')
-    expect(telemetry.fitnessWatch).toBe('unavailable')
     expect(telemetry.weather).toBe('ready')
     expect(telemetry.lastSyncLabel).toBe('Apple Health permission was denied.')
   })
