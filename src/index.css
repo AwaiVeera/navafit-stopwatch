@@ -2316,6 +2316,11 @@ select {
   display: flex;
   flex-direction: column;
   height: 100%;
+  /* Chat layout: clip the shell so the thread scrolls internally and the
+     composer stays pinned above the tab bar. Without this the shell's own
+     overflow-y:auto lets the whole screen scroll, sliding the input bar
+     under the floating tab nav. */
+  overflow: hidden;
 }
 
 .ay-header-badge {
@@ -2440,9 +2445,12 @@ select {
   display: flex;
   gap: 0.75rem;
   align-items: flex-end;
-  padding: 1rem 1rem calc(1rem + env(safe-area-inset-bottom, 0px));
+  /* The shell owns bottom safe-area + tab-nav clearance now, so the bar just
+     needs its own inner padding — no doubled safe-area inset here. */
+  padding: 0.85rem 1rem;
   background: var(--surface-glass-strong);
-  border-top: 1px solid var(--surface-border-soft);
+  border: 1px solid var(--surface-border-soft);
+  border-radius: 1.1rem;
   flex-shrink: 0;
 }
 
