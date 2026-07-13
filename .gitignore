@@ -60,3 +60,6 @@ build/_diag/
 
 # Superpowers brainstorming companion (mockup scratch space)
 .superpowers/
+
+# Claude local (per-machine) settings — never commit
+.claude/settings.local.json

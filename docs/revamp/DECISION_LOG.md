@@ -10,9 +10,9 @@ Append-only. Each entry: date · decision · rationale · evidence/owner.
 - **Facebook stays gated off** (`VITE_ENABLE_FACEBOOK`) until provisioned end-to-end.
 - **iOS build 29** (28 confirmed on TestFlight/Complete).
 
-## Pending (awaiting owner) — shape Phase 1
+## 2026-07-13 — Forks confirmed by owner
 
-1. **Purchases.** *Proposed:* build the entitlement seam (one `hasProUnlock` gate reused by Stopwatch + Breathwork), keep Intermediate/Advanced accessible, defer real StoreKit/Play Billing (needs paid-service auth + store config = §17 stop). *Awaiting confirm.*
-2. **Backend.** *Proposed:* Supabase for the whole revamp; Firebase dormant. Matches prior test-build decision. *Awaiting confirm.*
-3. **Infra depth.** *Proposed:* pragmatic — dispatch role-scoped subagents per task, add hooks only where they catch real regressions; skip ceremonial skill/agent files. *Awaiting confirm.*
-4. **Cadence.** *Proposed:* autonomous through phases, surface blockers as they arise. *Awaiting confirm.*
+1. **Purchases → entitlement seam, defer IAP.** Build one reusable `hasProUnlock` gate wired into Stopwatch + Breathwork; keep Intermediate/Advanced accessible. Real StoreKit/Play Billing deferred (needs paid-service auth + store config = §17 stop).
+2. **Backend → Supabase, Firebase dormant.** Continue on live Supabase for the whole revamp; keep Firebase lazy/off.
+3. **Infra → build the full files.** Create the 5 subagent definitions (`.claude/agents/`), 5 project skills (`.claude/skills/`), and enforcement hooks (`.claude/hooks/` + `settings.json`) as real repo files.
+4. **Cadence → autonomous.** Run Phase 1→8 continuously, commit per phase, stop only for §17 blockers.
