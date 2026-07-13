@@ -137,4 +137,19 @@ describe('MonotonicElapsedTimer', () => {
     expect(timer.isRunning).toBe(false)
     expect(timer.elapsed(5_000)).toBe(0)
   })
+
+  it('setElapsed jumps elapsed and keeps accruing when running', () => {
+    const timer = new MonotonicElapsedTimer()
+    timer.start(1_000)
+    timer.setElapsed(50_000, 1_200)
+    expect(timer.elapsed(1_200)).toBe(50_000)
+    expect(timer.elapsed(1_700)).toBe(50_500) // continues from the jump
+  })
+
+  it('setElapsed while paused stays frozen at the new value', () => {
+    const timer = new MonotonicElapsedTimer()
+    timer.setElapsed(30_000, 5_000) // never started → paused
+    expect(timer.isRunning).toBe(false)
+    expect(timer.elapsed(9_999)).toBe(30_000)
+  })
 })

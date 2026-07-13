@@ -166,6 +166,15 @@ export class MonotonicElapsedTimer {
     this.runningSince = null
   }
 
+  /**
+   * Jump elapsed to an exact value (for skip / end / seek), preserving the
+   * running state so accrual continues from `nowMs` if the timer was running.
+   */
+  setElapsed(ms: number, nowMs: number): void {
+    this.carriedMs = Math.max(0, ms)
+    this.runningSince = this.runningSince === null ? null : nowMs
+  }
+
   /** Elapsed active milliseconds as of `nowMs`. Never negative. */
   elapsed(nowMs: number): number {
     const running = this.runningSince === null ? 0 : Math.max(0, nowMs - this.runningSince)
