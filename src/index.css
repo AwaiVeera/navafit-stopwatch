@@ -2994,3 +2994,244 @@ select {
   line-height: 1.5;
   color: var(--dq-text-muted);
 }
+
+/* ═══════════════════════════════════════════════════
+   STOPWATCH — Chronometer + Digital interval interfaces
+   ═══════════════════════════════════════════════════ */
+
+.sw-screen {
+  gap: 0.75rem;
+}
+
+.sw-head {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  max-width: var(--content-max-width);
+  margin: 0 auto;
+  flex-shrink: 0;
+}
+
+.sw-back {
+  width: 2.4rem;
+  height: 2.4rem;
+  border-radius: 50%;
+  border: 1px solid var(--surface-border);
+  background: var(--surface-glass);
+  color: var(--text-primary);
+  font-size: 1.15rem;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sw-face-wrap {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+
+/* --- Chronometer face --- */
+.chrono {
+  --chrono-accent: var(--accent-primary);
+  position: relative;
+  width: min(78vw, 20rem);
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.chrono-tone-prep { --chrono-accent: #d8a24a; }
+.chrono-tone-work { --chrono-accent: var(--accent-primary); }
+.chrono-tone-rest { --chrono-accent: #5aa0a0; }
+.chrono-tone-done { --chrono-accent: #6bbf7a; }
+
+.chrono-dial {
+  width: 100%;
+  height: 100%;
+}
+
+.chrono-track {
+  fill: none;
+  stroke: var(--surface-border-soft);
+  stroke-width: 8;
+}
+
+.chrono-progress {
+  fill: none;
+  stroke: var(--chrono-accent);
+  stroke-width: 8;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.2s linear, stroke 0.3s ease;
+}
+
+.chrono-tick { stroke: var(--surface-border); stroke-width: 1.5; }
+.chrono-tick--major { stroke: var(--text-dim); stroke-width: 2.5; }
+
+.chrono-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.15rem;
+}
+
+.chrono-phase {
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  font-size: 0.72rem;
+  color: var(--chrono-accent);
+}
+
+.chrono-time {
+  font-family: 'Inter', sans-serif;
+  font-variant-numeric: tabular-nums;
+  font-size: 3.2rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1;
+}
+
+.chrono-round {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+/* --- Digital face --- */
+.digital {
+  --digital-accent: var(--accent-primary);
+  width: 100%;
+  max-width: var(--content-max-width);
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  padding: 0.5rem 0.25rem;
+}
+
+.digital-tone-prep { --digital-accent: #d8a24a; }
+.digital-tone-work { --digital-accent: var(--accent-primary); }
+.digital-tone-rest { --digital-accent: #5aa0a0; }
+.digital-tone-done { --digital-accent: #6bbf7a; }
+
+.digital-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.digital-phase {
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  font-size: 0.8rem;
+  color: var(--digital-accent);
+  font-weight: 600;
+}
+
+.digital-round {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.digital-time {
+  font-family: 'Inter', sans-serif;
+  font-variant-numeric: tabular-nums;
+  font-size: clamp(3.5rem, 22vw, 5.5rem);
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1;
+  text-align: center;
+}
+
+.digital-next {
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+
+.digital-next strong { color: var(--digital-accent); }
+
+.digital-bar {
+  height: 0.4rem;
+  border-radius: 1rem;
+  background: var(--surface-glass-strong);
+  overflow: hidden;
+}
+
+.digital-bar-fill {
+  display: block;
+  height: 100%;
+  background: var(--digital-accent);
+  border-radius: 1rem;
+  transition: width 0.2s linear;
+}
+
+.digital-meta {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.6rem;
+  margin: 0;
+}
+
+.digital-meta > div {
+  background: var(--surface-glass);
+  border: 1px solid var(--surface-border-soft);
+  border-radius: 0.75rem;
+  padding: 0.6rem 0.8rem;
+}
+
+.digital-meta dt {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-dim);
+}
+
+.digital-meta dd {
+  margin: 0;
+  font-size: 1.1rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+
+/* --- Transport controls --- */
+.sw-controls {
+  display: flex;
+  gap: 0.6rem;
+  width: 100%;
+  max-width: var(--content-max-width);
+  margin: 0 auto;
+  flex-shrink: 0;
+}
+
+.sw-btn {
+  flex: 1;
+  border-radius: 0.9rem;
+  padding: 0.85rem 0.5rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  border: 1px solid var(--surface-border);
+  background: var(--surface-glass);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.sw-btn-primary {
+  flex: 2;
+  background: linear-gradient(135deg, var(--cta-start) 0%, var(--cta-end) 100%);
+  color: var(--cta-text);
+  border-color: var(--cta-border);
+  box-shadow: 0 6px 18px var(--cta-glow);
+}
+
+.sw-btn-danger {
+  color: var(--danger-soft);
+  border-color: color-mix(in srgb, var(--danger-soft) 40%, transparent);
+}

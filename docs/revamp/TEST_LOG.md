@@ -31,3 +31,17 @@ Browser reproduction via chrome-devtools MCP against `vite dev` (login is the un
 
 Gates after fix: `npm run build:web` ✅ · `npx vitest run` ✅ 51/51 · `npm run lint` ✅.
 On-device keyboard verification still pending (no `@capacitor/keyboard`) — RISK_LOG R2/R9.
+
+## 2026-07-13 — Phase 3 Stopwatch rebuild
+
+| Scope | Command / method | Result |
+|---|---|---|
+| Timer logic | vitest (engine 17, controller 10, entitlements 3, presets 4, format 4) | ✅ |
+| Stopwatch screen | `vitest run src/screens/StopwatchScreen.test.tsx` | ✅ 3 passed (opens Prepare/Round 1-of-5; start→pause/resume transport; both faces render) |
+| Full suite | `npx vitest run` | ✅ 76 passed / 16 files |
+| Build + lint | `npm run build:web`, `npm run lint` | ✅ |
+| Visual (chrome-devtools, `?preview=stopwatch`, 430×932) | Chronometer + Digital | ✅ prep→work transition fired; progress arc + total bar render; time math exact (WORK 2:37, ELAPSED 0:33 + REMAINING 18:37 = 19:10 total) |
+
+Verified end-to-end engine→controller→hook→UI in a real browser via the new DEV
+preview harness (`?preview=stopwatch`). Audio/haptic cue code paths ran without
+error; on-device sound/haptic confirmation still pending (RISK_LOG R2).
