@@ -6,14 +6,19 @@
 import type { ReactNode } from 'react'
 
 import { BreathScreen } from '../screens/BreathScreen'
+import { DashboardScreen } from '../screens/DashboardScreen'
 import { StopwatchScreen } from '../screens/StopwatchScreen'
 import type {
   BreathworkMode,
   HealthMetrics,
+  InsightSnapshot,
+  OnboardingProfile,
   SessionPreset,
   StopwatchModeConfig,
-  WeatherSnapshot,
+  TelemetryState,
+  WorkoutLog,
 } from '../types'
+import type { WeatherSnapshot } from '../types'
 
 const MOCK_MODE: StopwatchModeConfig = {
   id: 'intermediate',
@@ -58,6 +63,60 @@ export function StopwatchPreview() {
         sessionPreset={MOCK_PRESET}
         stopwatchMode={MOCK_MODE}
         onSaveSession={() => undefined}
+      />
+    </PreviewFrame>
+  )
+}
+
+const MOCK_HEALTH: HealthMetrics = {
+  heartRate: 62,
+  readiness: 78,
+  stamina: 70,
+  breathPerMinute: 13,
+  endurance: 66,
+  stressLevel: 32,
+  stepsToday: 8432,
+}
+
+const MOCK_TELEMETRY = {
+  healthApp: 'ready',
+  weather: 'ready',
+  weatherSnapshot: { condition: 'Clear skies', temperatureC: 29, source: 'device' },
+  lastSyncLabel: 'Synced 2 min ago',
+  healthSourceLabel: 'Apple Health',
+} as unknown as TelemetryState
+
+const MOCK_INSIGHTS = {
+  engineLabel: 'NavaFit AI',
+  generatedAtLabel: 'just now',
+  items: [{ title: 'Well recovered — a strong day to train' }],
+} as unknown as InsightSnapshot
+
+const MOCK_PROFILE: OnboardingProfile = { ageYears: 32, heightCm: 178, weightKg: 74, trainingDaysPerWeek: 4 }
+
+const MOCK_LOGS: WorkoutLog[] = [
+  { id: '1', date: new Date().toISOString(), title: 'Kalari Interval', durationMinutes: 24, note: '' },
+  { id: '2', date: new Date(Date.now() - 86_400_000).toISOString(), title: 'Box Breathing', durationMinutes: 8, note: '' },
+]
+
+export function DashboardPreview() {
+  return (
+    <PreviewFrame>
+      <DashboardScreen
+        health={MOCK_HEALTH}
+        insights={MOCK_INSIGHTS}
+        telemetry={MOCK_TELEMETRY}
+        isTelemetrySyncing={false}
+        onSyncTelemetry={() => undefined}
+        onEnableHealthWeather={() => undefined}
+        logs={MOCK_LOGS}
+        totalMinutes={320}
+        onOpenStopwatch={() => undefined}
+        onOpenBreath={() => undefined}
+        recommendedPreset={MOCK_PRESET}
+        presetMode={'ai' as never}
+        onboardingProfile={MOCK_PROFILE}
+        accountEmail="awai@navafit.sg"
       />
     </PreviewFrame>
   )

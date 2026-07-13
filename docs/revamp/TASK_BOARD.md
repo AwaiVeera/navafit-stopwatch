@@ -14,7 +14,7 @@ Single source of truth for phase status. The main session is Scrum Master; role 
 | 2 · Login stability | preserve design, fix scale/scroll defect, device regression tests | UX/QA | 🟨 |
 | 3 · Stopwatch | chronometer + digital swipe, one timer engine, audio/haptics, presets, logging | UX/PERF | 🟨 |
 | 4 · Breathwork | foundation tutorial, guided sessions, levels, animation, safety | UX/SEC | 🟨 |
-| 5 · Dashboard | profile/health/weather/location/history/recommendation, empty+denied states | UX/ARCH | ⬜ |
+| 5 · Dashboard | profile/health/weather/location/history/recommendation, empty+denied states | UX/ARCH | 🟨 |
 | 6 · Settings | account/deletion/logout, sync, experience, contact cards, privacy, subscription controls | SEC/UX | ⬜ |
 | 7 · Production hardening | security, performance, accessibility, offline, error boundaries, dep audit | SEC/PERF | ⬜ |
 | 8 · Release verification | iOS + Android production builds, checklists, store assets/review notes | QA/SEC | ⬜ |

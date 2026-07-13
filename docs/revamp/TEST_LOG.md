@@ -59,3 +59,17 @@ error; on-device sound/haptic confirmation still pending (RISK_LOG R2).
 Breathing orb follows the real phase via engine `expansion` (0..1); reduced-motion
 holds the orb still and relies on the phase label + countdown. Foundation safety
 content is non-diagnostic. On-device audio/haptic still pending (RISK_LOG R2).
+
+## 2026-07-13 — Phase 5 Dashboard IA overhaul
+
+| Scope | Command / method | Result |
+|---|---|---|
+| Streak | `vitest run src/services/streak.test.ts` | ✅ 6 passed (consecutive days, live-if-yesterday, gaps, multi-session/day) |
+| Dashboard screen | `vitest run src/screens/DashboardScreen.test.tsx` | ✅ 4 passed (greeting/clock/readiness/actions; synced-vs-profile tags; steps-not-connected; empty previous-session) |
+| Full suite | `npx vitest run` | ✅ 107 passed / 21 files |
+| Build + lint | `npm run build:web`, `npm run lint` | ✅ |
+| Visual (chrome-devtools, `?preview=dashboard`, 430×932) | 2 pages | ✅ live clock/date, weather, readiness ring (78), 2-day streak, session quick-access (Stopwatch+Breathwork); page 2: SYNCED vs PROFILE tags, health-sync, previous session, quote |
+
+New: live clock/date + streak (previously absent). Honest data states (steps null →
+"Not connected"; HR 0 → "—"); synced vs manual visually distinguished; no
+manufactured values.

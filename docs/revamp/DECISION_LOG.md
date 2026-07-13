@@ -16,3 +16,14 @@ Append-only. Each entry: date · decision · rationale · evidence/owner.
 2. **Backend → Supabase, Firebase dormant.** Continue on live Supabase for the whole revamp; keep Firebase lazy/off.
 3. **Infra → build the full files.** Create the 5 subagent definitions (`.claude/agents/`), 5 project skills (`.claude/skills/`), and enforcement hooks (`.claude/hooks/` + `settings.json`) as real repo files.
 4. **Cadence → autonomous.** Run Phase 1→8 continuously, commit per phase, stop only for §17 blockers.
+
+## 2026-07-13 — Phase 5 Dashboard
+
+- **Body-report/progress chart moved out of Dashboard.** The old dashboard's
+  `buildChartFromLogs` trend chart is intentionally not in the rebuilt IA; it
+  belongs on the dedicated Progress screen (mandate §16, a later screen-split).
+  Not a silent removal — logged here; the underlying logs data is unchanged.
+- **No user-name field exists** in the data model, so the greeting uses time of
+  day + the email handle rather than manufacturing a name.
+- Synced vs manual data is visually tagged (SYNCED green / PROFILE) per data
+  rule 5; steps/HR show honest unavailable states (null → "Not connected"/"—").

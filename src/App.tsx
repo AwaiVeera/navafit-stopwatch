@@ -1069,8 +1069,11 @@ function App() {
                   onEnableHealthWeather={handleEnableHealthAndWeather}
                   totalMinutes={totalMinutes}
                   onOpenStopwatch={handleOpenPreSession}
+                  onOpenBreath={() => setCurrentView('breath')}
                   recommendedPreset={recommendedPreset}
                   presetMode={presetMode}
+                  onboardingProfile={onboardingProfile}
+                  accountEmail={accountEmail}
                   weatherUiPhase={weatherUiPhase}
                 />
               )}

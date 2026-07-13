@@ -17,6 +17,7 @@ if (import.meta.env.DEV) {
     const registry: Record<string, () => ReactNode> = {
       stopwatch: () => <preview.StopwatchPreview />,
       breath: () => <preview.BreathPreview />,
+      dashboard: () => <preview.DashboardPreview />,
     }
     root = registry[previewName]?.() ?? <App />
   }
