@@ -2641,13 +2641,21 @@ select {
 
 .dq-hero {
   position: relative;
-  flex: 0 0 44%;
+  /* Yields height on short viewports (keyboard open / landscape) so the form is
+     never squeezed off-screen; holds ~44% on tall screens. min-height keeps the
+     brand visible. Top/side padding respects the safe area (dynamic island). */
+  flex: 0 1 44%;
+  min-height: 7rem;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 0.65rem;
-  padding: 1.5rem 1.25rem 2.5rem;
+  padding:
+    calc(1.5rem + env(safe-area-inset-top, 0px))
+    calc(1.25rem + env(safe-area-inset-right, 0px))
+    2.5rem
+    calc(1.25rem + env(safe-area-inset-left, 0px));
   overflow: hidden;
   background: radial-gradient(circle at 50% 32%, var(--dq-bg-top), var(--dq-bg-bottom) 72%);
 }
@@ -2770,7 +2778,14 @@ select {
   flex-direction: column;
   gap: 0.65rem;
   margin-top: -1.1rem;
-  padding: 1.35rem 1.15rem;
+  /* Bottom/side padding respects the safe area so the submit control clears the
+     home indicator; overflow-y:auto keeps the form reachable as a fallback when
+     content genuinely cannot fit (short viewport / large text). */
+  padding:
+    1.35rem
+    calc(1.15rem + env(safe-area-inset-right, 0px))
+    calc(1.35rem + env(safe-area-inset-bottom, 0px))
+    calc(1.15rem + env(safe-area-inset-left, 0px));
   border-radius: 1.5rem 1.5rem 0 0;
   background: var(--dq-sheet-bg);
   box-shadow: 0 -6px 20px rgba(46, 38, 32, 0.08);
@@ -2783,6 +2798,33 @@ select {
   margin-top: 0;
   overflow: visible;
   box-shadow: 0 10px 26px rgba(46, 38, 32, 0.08);
+}
+
+/* Short viewports (keyboard open, small phones, landscape): progressively
+   collapse the hero so the form stays visible without relying on scroll. The
+   sheet's internal scroll prevents flex-shrink from firing, so height is capped
+   explicitly here rather than via flex-basis alone. */
+@media (max-height: 680px) {
+  .dq-hero {
+    flex-basis: 30%;
+    min-height: 5rem;
+    gap: 0.35rem;
+    padding-top: calc(1rem + env(safe-area-inset-top, 0px));
+    padding-bottom: 1.4rem;
+  }
+  .dq-logo-ring { width: 3.5rem; height: 3.5rem; }
+  .dq-logo { width: 2.6rem; height: 2.6rem; font-size: 1.05rem; }
+  .dq-brand { font-size: 1.15rem; }
+}
+
+@media (max-height: 520px) {
+  .dq-hero {
+    flex-basis: 0%;
+    min-height: 3.75rem;
+  }
+  .dq-tagline { display: none; }
+  .dq-logo-ring { width: 2.9rem; height: 2.9rem; }
+  .dq-logo { width: 2.2rem; height: 2.2rem; font-size: 0.95rem; }
 }
 
 .dq-btn {

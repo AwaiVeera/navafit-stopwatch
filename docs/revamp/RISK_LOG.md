@@ -12,3 +12,5 @@ Each risk: id · description · severity · owner · next action. Severity: 🔴
 | R6 | Zero screen/E2E tests today — regression risk during large rebuilds | 🟠 | QA | Stand up screen-test + viewport-regression harness in Phase 1 before rebuilds |
 | R7 | Biometrics screen shows synthetic HRV/sleep as if measured | 🟠 | SEC | Relabel as estimates or remove in Phase 5; never manufacture health values |
 | R8 | `@capacitor/core@8.3.4` vs `@capacitor/ios@8.2.0` minor drift | 🟡 | ARCH | Align versions during Phase 7 dependency audit |
+| R9 | Login keyboard behaviour not verified on-device; no `@capacitor/keyboard` plugin | 🟠 | UX | CSS now collapses hero + sheet scroll fallback (verified in-browser). If device shows a hidden field, add `@capacitor/keyboard` with `resize:'body'` and re-test |
+| R10 | Auth-config message renders broken grammar ("Add VITE_SUPABASE_URL is missing. … to .env.local") | 🟡 | ARCH | Dev-only (only when unconfigured; test build has env). Fix message composition in a polish pass |
