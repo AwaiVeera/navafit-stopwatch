@@ -16,6 +16,7 @@ if (import.meta.env.DEV) {
     const preview = await import('./dev/ScreenPreview')
     const registry: Record<string, () => ReactNode> = {
       stopwatch: () => <preview.StopwatchPreview />,
+      breath: () => <preview.BreathPreview />,
     }
     root = registry[previewName]?.() ?? <App />
   }

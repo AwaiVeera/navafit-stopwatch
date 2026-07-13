@@ -45,3 +45,17 @@ On-device keyboard verification still pending (no `@capacitor/keyboard`) — RIS
 Verified end-to-end engine→controller→hook→UI in a real browser via the new DEV
 preview harness (`?preview=stopwatch`). Audio/haptic cue code paths ran without
 error; on-device sound/haptic confirmation still pending (RISK_LOG R2).
+
+## 2026-07-13 — Phase 4 Breathwork rebuild
+
+| Scope | Command / method | Result |
+|---|---|---|
+| Breath logic | vitest (breath-engine 10, breath-controller 8) | ✅ expansion top/bottom holds, transitions, skip/end/restart, auto-complete |
+| Breath screen | `vitest run src/screens/BreathScreen.test.tsx` | ✅ 3 passed (foundation gate for first-time beginner; skip once acknowledged; setup→running session) |
+| Full suite | `npx vitest run` | ✅ 97 passed / 19 files |
+| Build + lint | `npm run build:web`, `npm run lint` | ✅ |
+| Visual (chrome-devtools, `?preview=breath`, 430×932) | Setup + guided session | ✅ level/protocol/duration chips; orb phase-accurate (EXHALE teal tone, contracting halo, "4" countdown), instruction, Cycle 1/11 (3min÷16s), Skip/Pause/End |
+
+Breathing orb follows the real phase via engine `expansion` (0..1); reduced-motion
+holds the orb still and relies on the phase label + countdown. Foundation safety
+content is non-diagnostic. On-device audio/haptic still pending (RISK_LOG R2).

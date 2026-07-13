@@ -3235,3 +3235,216 @@ select {
   color: var(--danger-soft);
   border-color: color-mix(in srgb, var(--danger-soft) 40%, transparent);
 }
+
+/* ═══════════════════════════════════════════════════
+   BREATHWORK — foundation, setup, guided session
+   ═══════════════════════════════════════════════════ */
+
+.breath-screen {
+  gap: 0.85rem;
+}
+
+/* --- Foundation --- */
+.breath-foundation-head {
+  text-align: center;
+}
+
+.breath-foundation-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.breath-foundation-item {
+  background: var(--surface-glass);
+  border: 1px solid var(--surface-border-soft);
+  border-radius: 0.85rem;
+  padding: 0.75rem 0.9rem;
+}
+
+.breath-foundation-title {
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: 0.92rem;
+}
+
+.breath-foundation-body {
+  margin-top: 0.15rem;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+
+.breath-disclaimer {
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: var(--text-dim);
+  border-left: 2px solid color-mix(in srgb, var(--accent-primary) 40%, transparent);
+  padding-left: 0.75rem;
+}
+
+/* --- Setup --- */
+.breath-setup {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.breath-choice-label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--text-dim);
+  margin-bottom: 0.45rem;
+}
+
+.breath-chip-row {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.breath-chip-row--wrap {
+  flex-wrap: wrap;
+}
+
+.breath-chip {
+  flex: 1;
+  min-width: fit-content;
+  padding: 0.6rem 0.9rem;
+  border-radius: 0.7rem;
+  border: 1px solid var(--surface-border);
+  background: var(--surface-glass);
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color var(--dur-fast) var(--ease-smooth), color var(--dur-fast) var(--ease-smooth);
+}
+
+.breath-chip--active {
+  border-color: var(--accent-primary);
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--accent-primary) 16%, transparent);
+}
+
+.breath-protocol-desc {
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+.breath-safety {
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: var(--danger-soft);
+  background: color-mix(in srgb, var(--danger-soft) 10%, transparent);
+  border-radius: 0.6rem;
+  padding: 0.6rem 0.75rem;
+}
+
+/* --- Session --- */
+.breath-session {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.breath-session-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.25rem;
+  text-align: center;
+}
+
+.breath-instruction {
+  font-size: 1.05rem;
+  color: var(--text-primary);
+  max-width: 20rem;
+}
+
+.breath-cycle {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.breath-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.breath-summary-title {
+  font-family: 'Sora', sans-serif;
+  font-size: 1.2rem;
+  color: var(--text-primary);
+}
+
+.breath-summary-line {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+/* --- Breathing orb --- */
+.breath-orb {
+  --orb-accent: var(--accent-primary);
+  position: relative;
+  width: min(62vw, 15rem);
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.breath-orb--inhale { --orb-accent: var(--accent-primary); }
+.breath-orb--hold { --orb-accent: #d8a24a; }
+.breath-orb--exhale { --orb-accent: #5aa0a0; }
+.breath-orb--complete { --orb-accent: #6bbf7a; }
+
+.breath-orb-halo {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: radial-gradient(circle, color-mix(in srgb, var(--orb-accent) 45%, transparent) 0%, transparent 70%);
+  border: 2px solid color-mix(in srgb, var(--orb-accent) 60%, transparent);
+  transform: scale(0.55);
+  transition: transform 0.14s linear, background 0.4s ease, border-color 0.4s ease;
+  will-change: transform;
+}
+
+.breath-orb[data-reduced='true'] .breath-orb-halo {
+  transform: scale(0.85);
+}
+
+.breath-orb-core {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.1rem;
+}
+
+.breath-orb-phase {
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  font-size: 0.8rem;
+  color: var(--orb-accent);
+}
+
+.breath-orb-count {
+  font-family: 'Inter', sans-serif;
+  font-variant-numeric: tabular-nums;
+  font-size: 2.8rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1;
+}
